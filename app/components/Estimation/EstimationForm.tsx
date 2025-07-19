@@ -580,15 +580,22 @@ export default function EstimationForm() {
           <Box
             sx={{
               border: '2px dashed',
-              borderColor: 'primary.main',
+              borderColor: 'grey.400',
               borderRadius: 2,
               p: 3,
               textAlign: 'center',
-              bgcolor: 'primary.light',
-              color: 'primary.contrastText',
+              bgcolor: 'grey.50',
               cursor: 'pointer',
+              transition: 'all 0.2s ease-in-out',
               '&:hover': {
-                bgcolor: 'primary.main',
+                borderColor: 'primary.main',
+                bgcolor: 'primary.light',
+                '& .upload-icon': {
+                  color: 'primary.main',
+                },
+                '& .upload-text': {
+                  color: 'primary.main',
+                }
               }
             }}
             component="label"
@@ -600,12 +607,45 @@ export default function EstimationForm() {
               style={{ display: 'none' }}
               disabled={uploadProgress}
             />
-            <CloudUpload sx={{ fontSize: 48, mb: 1 }} />
-            <Typography variant="h6" gutterBottom>
+            <CloudUpload 
+              className="upload-icon"
+              sx={{ 
+                fontSize: 64, 
+                mb: 2, 
+                color: 'grey.400',
+                transition: 'color 0.2s ease-in-out'
+              }} 
+            />
+            <Typography 
+              variant="h6" 
+              className="upload-text"
+              gutterBottom
+              sx={{ 
+                color: 'text.primary',
+                fontWeight: 600,
+                transition: 'color 0.2s ease-in-out'
+              }}
+            >
               Click to select file
             </Typography>
-            <Typography variant="body2">
+            <Typography 
+              variant="body2" 
+              sx={{ 
+                color: 'text.secondary',
+                mt: 1
+              }}
+            >
               Supports .xlsx, .xls, and .csv files
+            </Typography>
+            <Typography 
+              variant="caption" 
+              sx={{ 
+                color: 'text.secondary',
+                mt: 1,
+                display: 'block'
+              }}
+            >
+              Maximum file size: 10MB
             </Typography>
           </Box>
         </DialogContent>
