@@ -90,6 +90,7 @@ export default function EstimationForm() {
       const itemsWithIds = data.items.map((item, index) => ({
         ...item,
         id: `${Date.now()}-${index}`,
+        costHead: data.costHead,
       }));
 
       addEstimation({
