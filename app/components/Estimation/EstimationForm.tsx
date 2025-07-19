@@ -556,7 +556,7 @@ export default function EstimationForm() {
             <Typography variant="h6">Upload Excel/CSV File</Typography>
           </Box>
         </DialogTitle>
-        <DialogContent>
+        <DialogContent sx={{ pb: 2 }}>
           <Box sx={{ mb: 3 }}>
             <Typography variant="body2" color="text.secondary" gutterBottom>
               Upload an Excel (.xlsx, .xls) or CSV file with the following columns:
@@ -582,11 +582,18 @@ export default function EstimationForm() {
               border: '2px dashed',
               borderColor: 'grey.400',
               borderRadius: 2,
-              p: 3,
+              p: 4,
               textAlign: 'center',
               bgcolor: 'grey.50',
               cursor: 'pointer',
               transition: 'all 0.2s ease-in-out',
+              minHeight: 200,
+              display: 'flex',
+              flexDirection: 'column',
+              alignItems: 'center',
+              justifyContent: 'center',
+              position: 'relative',
+              overflow: 'hidden',
               '&:hover': {
                 borderColor: 'primary.main',
                 bgcolor: 'primary.light',
@@ -610,8 +617,8 @@ export default function EstimationForm() {
             <CloudUpload 
               className="upload-icon"
               sx={{ 
-                fontSize: 64, 
-                mb: 2, 
+                fontSize: 48, 
+                mb: 1, 
                 color: 'grey.400',
                 transition: 'color 0.2s ease-in-out'
               }} 
@@ -623,7 +630,8 @@ export default function EstimationForm() {
               sx={{ 
                 color: 'text.primary',
                 fontWeight: 600,
-                transition: 'color 0.2s ease-in-out'
+                transition: 'color 0.2s ease-in-out',
+                mb: 1
               }}
             >
               Click to select file
@@ -632,7 +640,7 @@ export default function EstimationForm() {
               variant="body2" 
               sx={{ 
                 color: 'text.secondary',
-                mt: 1
+                mb: 0.5
               }}
             >
               Supports .xlsx, .xls, and .csv files
@@ -641,7 +649,6 @@ export default function EstimationForm() {
               variant="caption" 
               sx={{ 
                 color: 'text.secondary',
-                mt: 1,
                 display: 'block'
               }}
             >
@@ -649,7 +656,7 @@ export default function EstimationForm() {
             </Typography>
           </Box>
         </DialogContent>
-        <DialogActions>
+        <DialogActions sx={{ pt: 1, pb: 2, px: 3 }}>
           <Button onClick={() => setUploadDialog(false)} disabled={uploadProgress}>
             Cancel
           </Button>
