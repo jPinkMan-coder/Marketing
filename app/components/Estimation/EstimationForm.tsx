@@ -20,11 +20,18 @@ import {
   Paper,
   Alert,
   Snackbar,
+  Dialog,
+  DialogTitle,
+  DialogContent,
+  DialogActions,
+  LinearProgress,
 } from '@mui/material';
-import { Add, Delete, Save, Send } from '@mui/icons-material';
+import { Add, Delete, Save, Send, Upload, CloudUpload } from '@mui/icons-material';
 import { useForm, useFieldArray } from 'react-hook-form';
 import { useEstimation } from '../../context/EstimationContext';
 import { useApp } from '../../context/AppContext';
+import * as XLSX from 'xlsx';
+import Papa from 'papaparse';
 
 interface EstimationItem {
   description: string;
@@ -60,6 +67,10 @@ export default function EstimationForm() {
   const { currentProject, user } = useApp();
   const [showSuccess, setShowSuccess] = useState(false);
   const [showError, setShowError] = useState(false);
+  const [uploadDialog, setUploadDialog] = useState(false);
+  const [uploadProgress, setUploadProgress] = useState(false);
+  const [uploadMessage, setUploadMessage] = useState('');
+  const [uploadSeverity, setUploadSeverity] = useState<'success' | 'error' | 'warning'>('success');
 
   const { register, control, handleSubmit, watch, setValue, reset } = useForm<EstimationFormData>({
     defaultValues: {
@@ -128,6 +139,191 @@ export default function EstimationForm() {
 
   const handleSubmitEstimation = () => {
     handleSubmit((data) => onSubmit(data, false))();
+  };
+
+  const handleFileUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (!file) return;
+
+    setUploadProgress(true);
+    setUploadMessage('');
+
+    const fileExtension = file.name.split('.').pop()?.toLowerCase();
+    
+    if (fileExtension === 'csv') {
+      // Handle CSV files
+      Papa.parse(file, {
+        header: true,
+        skipEmptyLines: true,
+        complete: (results) => {
+          processUploadedData(results.data, file.name);
+        },
+        error: (error) => {
+          setUploadProgress(false);
+          setUploadMessage(`Error parsing CSV file: ${error.message}`);
+          setUploadSeverity('error');
+        }
+      });
+    } else if (fileExtension === 'xlsx' || fileExtension === 'xls') {
+      // Handle Excel files
+      const reader = new FileReader();
+      reader.onload = (e) => {
+        try {
+          const data = new Uint8Array(e.target?.result as ArrayBuffer);
+          const workbook = XLSX.read(data, { type: 'array' });
+          const sheetName = workbook.SheetNames[0];
+          const worksheet = workbook.Sheets[sheetName];
+          const jsonData = XLSX.utils.sheet_to_json(worksheet, { header: 1 });
+          
+          // Convert array of arrays to array of objects
+          if (jsonData.length > 0) {
+            const headers = jsonData[0] as string[];
+            const rows = jsonData.slice(1) as any[][];
+            const objectData = rows.map(row => {
+              const obj: any = {};
+              headers.forEach((header, index) => {
+                obj[header] = row[index];
+              });
+              return obj;
+            });
+            processUploadedData(objectData, file.name);
+          } else {
+            setUploadProgress(false);
+            setUploadMessage('The Excel file appears to be empty.');
+            setUploadSeverity('error');
+          }
+        } catch (error) {
+          setUploadProgress(false);
+          setUploadMessage(`Error parsing Excel file: ${error}`);
+          setUploadSeverity('error');
+        }
+      };
+      reader.readAsArrayBuffer(file);
+    } else {
+      setUploadProgress(false);
+      setUploadMessage('Please upload a valid Excel (.xlsx, .xls) or CSV file.');
+      setUploadSeverity('error');
+    }
+
+    // Reset the input
+    event.target.value = '';
+  };
+
+  const processUploadedData = (data: any[], fileName: string) => {
+    try {
+      // Define possible column name variations
+      const columnMappings = {
+        description: ['description', 'item', 'item description', 'particulars', 'details'],
+        quantity: ['quantity', 'qty', 'amount', 'number'],
+        unit: ['unit', 'uom', 'unit of measurement', 'measure'],
+        unitCost: ['unit cost', 'unitcost', 'rate', 'price', 'unit price', 'cost per unit'],
+        totalCost: ['total cost', 'totalcost', 'total', 'amount', 'total amount', 'total price']
+      };
+
+      // Find matching columns (case-insensitive)
+      const findColumn = (possibleNames: string[], headers: string[]) => {
+        return headers.find(header => 
+          possibleNames.some(name => 
+            header.toLowerCase().trim() === name.toLowerCase()
+          )
+        );
+      };
+
+      if (data.length === 0) {
+        setUploadProgress(false);
+        setUploadMessage('The file appears to be empty.');
+        setUploadSeverity('error');
+        return;
+      }
+
+      const headers = Object.keys(data[0]);
+      const descriptionCol = findColumn(columnMappings.description, headers);
+      const quantityCol = findColumn(columnMappings.quantity, headers);
+      const unitCol = findColumn(columnMappings.unit, headers);
+      const unitCostCol = findColumn(columnMappings.unitCost, headers);
+
+      // Validate required columns
+      const missingColumns = [];
+      if (!descriptionCol) missingColumns.push('Description');
+      if (!quantityCol) missingColumns.push('Quantity');
+      if (!unitCol) missingColumns.push('Unit');
+      if (!unitCostCol) missingColumns.push('Unit Cost');
+
+      if (missingColumns.length > 0) {
+        setUploadProgress(false);
+        setUploadMessage(`Missing required columns: ${missingColumns.join(', ')}. Available columns: ${headers.join(', ')}`);
+        setUploadSeverity('error');
+        return;
+      }
+
+      // Process and validate data
+      const validItems: EstimationItem[] = [];
+      const errors: string[] = [];
+
+      data.forEach((row, index) => {
+        const rowNumber = index + 2; // +2 because index starts at 0 and we skip header
+        
+        // Skip empty rows
+        if (!row[descriptionCol!] && !row[quantityCol!] && !row[unitCol!] && !row[unitCostCol!]) {
+          return;
+        }
+
+        const description = String(row[descriptionCol!] || '').trim();
+        const quantity = parseFloat(row[quantityCol!]) || 0;
+        const unit = String(row[unitCol!] || '').trim();
+        const unitCost = parseFloat(row[unitCostCol!]) || 0;
+        const totalCost = quantity * unitCost;
+
+        // Validate required fields
+        if (!description) {
+          errors.push(`Row ${rowNumber}: Description is required`);
+        }
+        if (quantity <= 0) {
+          errors.push(`Row ${rowNumber}: Quantity must be greater than 0`);
+        }
+        if (!unit) {
+          errors.push(`Row ${rowNumber}: Unit is required`);
+        }
+        if (unitCost <= 0) {
+          errors.push(`Row ${rowNumber}: Unit Cost must be greater than 0`);
+        }
+
+        if (description && quantity > 0 && unit && unitCost > 0) {
+          validItems.push({
+            description,
+            quantity,
+            unit,
+            unitCost,
+            totalCost
+          });
+        }
+      });
+
+      setUploadProgress(false);
+
+      if (errors.length > 0) {
+        setUploadMessage(`Found ${errors.length} error(s):\n${errors.slice(0, 5).join('\n')}${errors.length > 5 ? '\n...and more' : ''}`);
+        setUploadSeverity('warning');
+      }
+
+      if (validItems.length > 0) {
+        // Add valid items to the form
+        const currentItems = getValues('items');
+        const newItems = [...currentItems, ...validItems];
+        replace(newItems);
+        
+        setUploadDialog(false);
+        setUploadMessage(`Successfully imported ${validItems.length} item(s) from ${fileName}${errors.length > 0 ? ` (${errors.length} rows had errors)` : ''}`);
+        setUploadSeverity(errors.length > 0 ? 'warning' : 'success');
+      } else if (errors.length > 0) {
+        setUploadMessage('No valid items could be imported. Please check your file format and data.');
+        setUploadSeverity('error');
+      }
+    } catch (error) {
+      setUploadProgress(false);
+      setUploadMessage(`Error processing file: ${error}`);
+      setUploadSeverity('error');
+    }
   };
 
   return (
@@ -205,13 +401,23 @@ export default function EstimationForm() {
               <Typography variant="h6" fontWeight={600}>
                 Cost Items
               </Typography>
-              <Button
-                startIcon={<Add />}
-                onClick={() => append({ description: '', quantity: 1, unit: '', unitCost: 0, totalCost: 0 })}
-                variant="outlined"
-              >
-                Add Item
-              </Button>
+              <Box sx={{ display: 'flex', gap: 1 }}>
+                <Button
+                  startIcon={<Upload />}
+                  onClick={() => setUploadDialog(true)}
+                  variant="outlined"
+                  color="secondary"
+                >
+                  Upload Excel
+                </Button>
+                <Button
+                  startIcon={<Add />}
+                  onClick={() => append({ description: '', quantity: 1, unit: '', unitCost: 0, totalCost: 0 })}
+                  variant="outlined"
+                >
+                  Add Item
+                </Button>
+              </Box>
             </Box>
 
             <TableContainer component={Paper} sx={{ mb: 3 }}>
@@ -342,6 +548,74 @@ export default function EstimationForm() {
         </CardContent>
       </Card>
 
+      {/* Excel Upload Dialog */}
+      <Dialog open={uploadDialog} onClose={() => setUploadDialog(false)} maxWidth="sm" fullWidth>
+        <DialogTitle>
+          <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+            <CloudUpload color="primary" />
+            <Typography variant="h6">Upload Excel/CSV File</Typography>
+          </Box>
+        </DialogTitle>
+        <DialogContent>
+          <Box sx={{ mb: 3 }}>
+            <Typography variant="body2" color="text.secondary" gutterBottom>
+              Upload an Excel (.xlsx, .xls) or CSV file with the following columns:
+            </Typography>
+            <Box component="ul" sx={{ mt: 1, pl: 2 }}>
+              <Typography component="li" variant="body2"><strong>Description</strong> - Item description</Typography>
+              <Typography component="li" variant="body2"><strong>Quantity</strong> - Number of items</Typography>
+              <Typography component="li" variant="body2"><strong>Unit</strong> - Unit of measurement</Typography>
+              <Typography component="li" variant="body2"><strong>Unit Cost</strong> - Cost per unit</Typography>
+              <Typography component="li" variant="body2">Total Cost - Will be calculated automatically</Typography>
+            </Box>
+          </Box>
+          
+          {uploadProgress && (
+            <Box sx={{ mb: 2 }}>
+              <Typography variant="body2" gutterBottom>Processing file...</Typography>
+              <LinearProgress />
+            </Box>
+          )}
+          
+          <Box
+            sx={{
+              border: '2px dashed',
+              borderColor: 'primary.main',
+              borderRadius: 2,
+              p: 3,
+              textAlign: 'center',
+              bgcolor: 'primary.light',
+              color: 'primary.contrastText',
+              cursor: 'pointer',
+              '&:hover': {
+                bgcolor: 'primary.main',
+              }
+            }}
+            component="label"
+          >
+            <input
+              type="file"
+              accept=".xlsx,.xls,.csv"
+              onChange={handleFileUpload}
+              style={{ display: 'none' }}
+              disabled={uploadProgress}
+            />
+            <CloudUpload sx={{ fontSize: 48, mb: 1 }} />
+            <Typography variant="h6" gutterBottom>
+              Click to select file
+            </Typography>
+            <Typography variant="body2">
+              Supports .xlsx, .xls, and .csv files
+            </Typography>
+          </Box>
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={() => setUploadDialog(false)} disabled={uploadProgress}>
+            Cancel
+          </Button>
+        </DialogActions>
+      </Dialog>
+
       <Snackbar
         open={showSuccess}
         autoHideDuration={6000}
@@ -359,6 +633,16 @@ export default function EstimationForm() {
       >
         <Alert onClose={() => setShowError(false)} severity="error" sx={{ width: '100%' }}>
           Error saving estimation. Please try again.
+        </Alert>
+      </Snackbar>
+
+      <Snackbar
+        open={!!uploadMessage}
+        autoHideDuration={8000}
+        onClose={() => setUploadMessage('')}
+      >
+        <Alert onClose={() => setUploadMessage('')} severity={uploadSeverity} sx={{ width: '100%' }}>
+          {uploadMessage}
         </Alert>
       </Snackbar>
     </>
