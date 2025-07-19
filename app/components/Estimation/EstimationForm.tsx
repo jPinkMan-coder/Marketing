@@ -72,7 +72,7 @@ export default function EstimationForm() {
   const [uploadMessage, setUploadMessage] = useState('');
   const [uploadSeverity, setUploadSeverity] = useState<'success' | 'error' | 'warning'>('success');
 
-  const { register, control, handleSubmit, watch, setValue, reset } = useForm<EstimationFormData>({
+  const { register, control, handleSubmit, watch, setValue, reset, getValues } = useForm<EstimationFormData>({
     defaultValues: {
       projectId: currentProject?.id || '',
       estimatedBy: user?.name || '',
@@ -80,7 +80,7 @@ export default function EstimationForm() {
     }
   });
 
-  const { fields, append, remove } = useFieldArray({
+  const { fields, append, remove, replace } = useFieldArray({
     control,
     name: 'items'
   });
