@@ -34,6 +34,7 @@ import * as XLSX from 'xlsx';
 import Papa from 'papaparse';
 
 interface EstimationItem {
+ 
   description: string;
   quantity: number;
   unit: string;
@@ -76,7 +77,7 @@ export default function EstimationForm() {
     defaultValues: {
       projectId: currentProject?.id || '',
       estimatedBy: user?.name || '',
-      items: [{ description: '', quantity: 1, unit: '', unitCost: 0, totalCost: 0 }]
+      items: [] // Start with no items
     }
   });
 
@@ -125,7 +126,7 @@ export default function EstimationForm() {
         category: '',
         vendor: '',
         notes: '',
-        items: [{ description: '', quantity: 1, unit: '', unitCost: 0, totalCost: 0 }]
+        items: [] // Reset to no items
       });
     } catch (error) {
       console.error('Error saving estimation:', error);
@@ -433,79 +434,87 @@ export default function EstimationForm() {
                   </TableRow>
                 </TableHead>
                 <TableBody>
-                  {fields.map((field, index) => (
-                    <TableRow key={field.id}>
-                      <TableCell>
-                        <TextField
-                          fullWidth
-                          size="small"
-                          {...register(`items.${index}.description`)}
-                        />
-                      </TableCell>
-                      <TableCell>
-                        <TextField
-                          fullWidth
-                          size="small"
-                          type="number"
-                          {...register(`items.${index}.quantity`, {
-                            valueAsNumber: true,
-                            onChange: (e) => {
-                              const quantity = parseFloat(e.target.value) || 0;
-                              const unitCost = watchedItems[index]?.unitCost || 0;
-                              setValue(`items.${index}.totalCost`, calculateTotal(quantity, unitCost));
-                            }
-                          })}
-                        />
-                      </TableCell>
-                      <TableCell>
-                        <TextField
-                          fullWidth
-                          size="small"
-                          {...register(`items.${index}.unit`)}
-                        />
-                      </TableCell>
-                      <TableCell>
-                        <TextField
-                          fullWidth
-                          size="small"
-                          type="number"
-                          {...register(`items.${index}.unitCost`, {
-                            valueAsNumber: true,
-                            onChange: (e) => {
-                              const unitCost = parseFloat(e.target.value) || 0;
-                              const quantity = watchedItems[index]?.quantity || 0;
-                              setValue(`items.${index}.totalCost`, calculateTotal(quantity, unitCost));
-                            }
-                          })}
-                        />
-                      </TableCell>
-                      <TableCell>
-                        <TextField
-                          fullWidth
-                          size="small"
-                          type="number"
-                          InputProps={{ readOnly: true }}
-                          value={watchedItems[index]?.totalCost || 0}
-                          sx={{ 
-                            '& .MuiInputBase-input': { 
-                              bgcolor: 'background.default',
-                              fontWeight: 600,
-                            } 
-                          }}
-                        />
-                      </TableCell>
-                      <TableCell>
-                        <IconButton
-                          size="small"
-                          onClick={() => remove(index)}
-                          disabled={fields.length === 1}
-                          color="error"
-                        >
-                          <Delete />
-                        </IconButton>
+                  {fields.length === 0 ? (
+                    <TableRow>
+                      <TableCell colSpan={6} align="center">
+                        No row found
                       </TableCell>
                     </TableRow>
-                  ))}
+                  ) : (
+                    fields.map((field, index) => (
+                      <TableRow key={field.id}>
+                        <TableCell>
+                          <TextField
+                            fullWidth
+                            size="small"
+                            {...register(`items.${index}.description`)}
+                          />
+                        </TableCell>
+                        <TableCell>
+                          <TextField
+                            fullWidth
+                            size="small"
+                            type="number"
+                            {...register(`items.${index}.quantity`, {
+                              valueAsNumber: true,
+                              onChange: (e) => {
+                                const quantity = parseFloat(e.target.value) || 0;
+                                const unitCost = watchedItems[index]?.unitCost || 0;
+                                setValue(`items.${index}.totalCost`, calculateTotal(quantity, unitCost));
+                              }
+                            })}
+                          />
+                        </TableCell>
+                        <TableCell>
+                          <TextField
+                            fullWidth
+                            size="small"
+                            {...register(`items.${index}.unit`)}
+                          />
+                        </TableCell>
+                        <TableCell>
+                          <TextField
+                            fullWidth
+                            size="small"
+                            type="number"
+                            {...register(`items.${index}.unitCost`, {
+                              valueAsNumber: true,
+                              onChange: (e) => {
+                                const unitCost = parseFloat(e.target.value) || 0;
+                                const quantity = watchedItems[index]?.quantity || 0;
+                                setValue(`items.${index}.totalCost`, calculateTotal(quantity, unitCost));
+                              }
+                            })}
+                          />
+                        </TableCell>
+                        <TableCell>
+                          <TextField
+                            fullWidth
+                            size="small"
+                            type="number"
+                            InputProps={{ readOnly: true }}
+                            value={watchedItems[index]?.totalCost || 0}
+                            sx={{ 
+                              '& .MuiInputBase-input': { 
+                                bgcolor: 'background.default',
+                                fontWeight: 600,
+                              } 
+                            }}
+                          />
+                        </TableCell>
+                        <TableCell>
+                          <IconButton
+                            size="small"
+                            onClick={() => remove(index)}
+                            disabled={fields.length === 1}
+                            color="error"
+                          >
+                            <Delete />
+                          </IconButton>
+                        </TableCell>
+                      </TableRow>
+                    ))
+                  )}
                 </TableBody>
               </Table>
             </TableContainer>
@@ -562,11 +571,12 @@ export default function EstimationForm() {
               Upload an Excel (.xlsx, .xls) or CSV file with the following columns:
             </Typography>
             <Box component="ul" sx={{ mt: 1, pl: 2 }}>
+            <Typography component="li" variant="body2"><strong>Inventory Code</strong> - Inventory Code</Typography>
               <Typography component="li" variant="body2"><strong>Description</strong> - Item description</Typography>
               <Typography component="li" variant="body2"><strong>Quantity</strong> - Number of items</Typography>
               <Typography component="li" variant="body2"><strong>Unit</strong> - Unit of measurement</Typography>
               <Typography component="li" variant="body2"><strong>Unit Cost</strong> - Cost per unit</Typography>
-              <Typography component="li" variant="body2">Total Cost - Will be calculated automatically</Typography>
+              <Typography component="li" variant="body2"><strong>Total Cost </strong> - Will be calculated automatically</Typography>
             </Box>
           </Box>
           
