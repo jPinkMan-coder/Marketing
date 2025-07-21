@@ -3,24 +3,24 @@ import React, { createContext, useContext, useState, ReactNode, useEffect } from
 
 export interface EstimationItem {
   id: string;
-  description: string;
+  partNumber: string;
+  partDescription: string;
+  category: string;
   quantity: number;
   unit: string;
   unitCost: number;
   totalCost: number;
-  costHead: string;
 }
 
 export interface Estimation {
   id: string;
   projectId: string;
-  costHead: string;
-  category: string;
-  vendor: string;
-  estimatedBy: string;
-  items: EstimationItem[];
-  notes: string;
+  projectName: string;
+  company: string;
+  companyName: string;
+  baseCurrency: string;
   status: 'draft' | 'submitted' | 'approved' | 'rejected';
+  items: EstimationItem[];
   createdAt: string;
   updatedAt: string;
   totalAmount: number;
@@ -46,7 +46,7 @@ interface EstimationContextType {
   getEstimationById: (id: string) => Estimation | undefined;
   getEstimationsByProject: (projectId: string) => Estimation[];
   getCRSReportData: () => CRSReportData[];
-  getTotalsByCostHead: () => Record<string, number>;
+  getTotalsByCategory: () => Record<string, number>;
   getProjectSummary: () => {
     totalEstimate: number;
     totalCommitted: number;
@@ -58,26 +58,6 @@ interface EstimationContextType {
 
 const EstimationContext = createContext<EstimationContextType | undefined>(undefined);
 
-// Cost head mapping for CRS report
-const COST_HEAD_MAPPING: Record<string, string> = {
-  'OM01 - Material Cost': 'MATERIAL COST',
-  'OM02 - Manpower Cost': 'MANPOWER COST',
-  'OM03 - Subcontracting Cost': 'SUBCONTRACTING COST',
-  'OM04 - Equipment Cost': 'EQUIPMENT COST',
-  'OM05 - Transportation Cost': 'TRANSPORTATION COST',
-  'OM06 - Miscellaneous Cost': 'MISCELLANEOUS COST',
-};
-
-// Mock actual and committed data - in real app, this would come from purchase orders and actual expenses
-const MOCK_ACTUAL_DATA: Record<string, { actual: number; committed: number }> = {
-  'MATERIAL COST': { actual: 45000, committed: 42000 },
-  'MANPOWER COST': { actual: 18000, committed: 15000 },
-  'SUBCONTRACTING COST': { actual: 25000, committed: 28000 },
-  'EQUIPMENT COST': { actual: 12000, committed: 10000 },
-  'TRANSPORTATION COST': { actual: 8000, committed: 7500 },
-  'MISCELLANEOUS COST': { actual: 5000, committed: 4500 },
-};
-
 export function EstimationProvider({ children }: { children: ReactNode }) {
   const [estimations, setEstimations] = useState<Estimation[]>([]);
 
@@ -86,9 +66,17 @@ export function EstimationProvider({ children }: { children: ReactNode }) {
     const savedEstimations = localStorage.getItem('estimations');
     if (savedEstimations) {
       try {
-        setEstimations(JSON.parse(savedEstimations));
+        const parsed = JSON.parse(savedEstimations);
+        if (Array.isArray(parsed)) {
+          setEstimations(parsed);
+        } else {
+          // If the saved data is not an array, it's corrupted/stale.
+          localStorage.removeItem('estimations');
+        }
       } catch (error) {
         console.error('Error loading estimations from localStorage:', error);
+        // If parsing fails, the data is corrupted.
+        localStorage.removeItem('estimations');
       }
     }
   }, []);
@@ -135,37 +123,40 @@ export function EstimationProvider({ children }: { children: ReactNode }) {
     return estimations.filter(est => est.projectId === projectId);
   };
 
-  const getTotalsByCostHead = () => {
+  const getTotalsByCategory = () => {
     const totals: Record<string, number> = {};
-    
     estimations.forEach(estimation => {
       if (estimation.status === 'approved' || estimation.status === 'submitted') {
-        const mappedCostHead = COST_HEAD_MAPPING[estimation.costHead] || estimation.costHead;
-        totals[mappedCostHead] = (totals[mappedCostHead] || 0) + estimation.totalAmount;
+        estimation.items.forEach(item => {
+          totals[item.category] = (totals[item.category] || 0) + item.totalCost;
+        });
       }
     });
-
     return totals;
   };
 
   const getCRSReportData = (): CRSReportData[] => {
-    const estimateTotals = getTotalsByCostHead();
-    const reportData: CRSReportData[] = [];
-
-    // Generate report data for each cost head
-    Object.entries(COST_HEAD_MAPPING).forEach(([originalHead, mappedHead], index) => {
-      const estimate = estimateTotals[mappedHead] || 0;
-      const mockData = MOCK_ACTUAL_DATA[mappedHead] || { actual: 0, committed: 0 };
-      const actual = mockData.actual;
-      const committed = mockData.committed;
+    // Group by category
+    // For demo, use mock committed/actual data per category
+    const MOCK_CATEGORY_DATA: Record<string, { actual: number; committed: number }> = {
+      'Materials': { actual: 45000, committed: 42000 },
+      'Labor': { actual: 18000, committed: 15000 },
+      'Equipment': { actual: 12000, committed: 10000 },
+      'Services': { actual: 8000, committed: 7500 },
+      'Other': { actual: 5000, committed: 4500 },
+    };
+    const totalsByCategory = getTotalsByCategory();
+    return Object.entries(totalsByCategory).map(([category, estimate], idx) => {
+      const mock = MOCK_CATEGORY_DATA[category] || { actual: 0, committed: 0 };
+      const actual = mock.actual;
+      const committed = mock.committed;
       const uncommitted = Math.max(0, estimate - committed);
       const anticipated = actual + uncommitted;
       const variance = anticipated - estimate;
       const variancePercent = estimate > 0 ? (variance / estimate) * 100 : 0;
-
-      reportData.push({
-        slNo: `OM${String(index + 1).padStart(2, '0')}`,
-        particulars: mappedHead,
+      return {
+        slNo: String(idx + 1),
+        particulars: category,
         estimate: estimate > 0 ? estimate : null,
         committed: committed > 0 ? committed : null,
         uncommitted: uncommitted > 0 ? uncommitted : null,
@@ -173,15 +164,8 @@ export function EstimationProvider({ children }: { children: ReactNode }) {
         anticipated: anticipated > 0 ? anticipated : null,
         variance: Math.abs(variance) > 0 ? variance : null,
         variancePercent: Math.abs(variancePercent) > 0.01 ? variancePercent : null,
-      });
+      };
     });
-
-    // Filter out rows with no data
-    return reportData.filter(row => 
-      row.estimate !== null || 
-      row.committed !== null || 
-      row.actual !== null
-    );
   };
 
   const getProjectSummary = () => {
@@ -210,7 +194,7 @@ export function EstimationProvider({ children }: { children: ReactNode }) {
       getEstimationById,
       getEstimationsByProject,
       getCRSReportData,
-      getTotalsByCostHead,
+      getTotalsByCategory,
       getProjectSummary,
     }}>
       {children}

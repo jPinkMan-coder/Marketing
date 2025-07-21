@@ -19,6 +19,7 @@ import {
   Alert,
   IconButton,
   Collapse,
+  Tooltip,
 } from '@mui/material';
 import { 
   Download, 
@@ -50,75 +51,151 @@ const getVarianceIcon = (variance: number | null) => {
   return variance > 0 ? <TrendingUp fontSize="small" /> : <TrendingDown fontSize="small" />;
 };
 
+interface ProjectData {
+  projectId: string;
+  projectName: string;
+  companyName: string;
+  categories: CategoryData[];
+  totalEstimate: number;
+  totalCommitted: number;
+  totalUncommitted: number;
+  totalActual: number;
+  totalAnticipated: number;
+  totalVariance: number;
+  totalVariancePercent: number;
+}
+
+interface CategoryData {
+  category: string;
+  estimate: number;
+  committed: number;
+  uncommitted: number;
+  actual: number;
+  anticipated: number;
+  variance: number;
+  variancePercent: number;
+  items: any[];
+}
+
 export default function CRSReport() {
-  const { getCRSReportData, getProjectSummary, estimations, getEstimationsByProject } = useEstimation();
+  const { estimations, getTotalsByCategory } = useEstimation();
   const { currentProject, user } = useApp();
-  const [expandedRows, setExpandedRows] = useState<Set<string>>(new Set());
+  const [expandedProjects, setExpandedProjects] = useState<Set<string>>(new Set());
+  const [expandedCategories, setExpandedCategories] = useState<Set<string>>(new Set());
 
-  const reportData = getCRSReportData();
-  const projectSummary = getProjectSummary();
-  const projectEstimations = getEstimationsByProject(currentProject?.id || '');
+  // Group estimations by project and then by category
+  const getProjectData = (): ProjectData[] => {
+    const projectMap = new Map<string, ProjectData>();
+    
+    // Mock data for committed/actual values per category
+    const MOCK_CATEGORY_DATA: Record<string, { actual: number; committed: number }> = {
+      'Materials': { actual: 45000, committed: 42000 },
+      'Labor': { actual: 18000, committed: 15000 },
+      'Equipment': { actual: 12000, committed: 10000 },
+      'Services': { actual: 8000, committed: 7500 },
+      'Other': { actual: 5000, committed: 4500 },
+    };
 
-  const totalEstimate = reportData.reduce((sum, item) => sum + (item.estimate || 0), 0);
-  const totalCommitted = reportData.reduce((sum, item) => sum + (item.committed || 0), 0);
-  const totalUncommitted = reportData.reduce((sum, item) => sum + (item.uncommitted || 0), 0);
-  const totalActual = reportData.reduce((sum, item) => sum + (item.actual || 0), 0);
-  const totalAnticipated = reportData.reduce((sum, item) => sum + (item.anticipated || 0), 0);
-  const totalVariance = reportData.reduce((sum, item) => sum + (item.variance || 0), 0);
-  const totalVariancePercent = totalEstimate > 0 ? ((totalVariance / totalEstimate) * 100) : 0;
+    estimations.forEach(estimation => {
+      if (estimation.status === 'approved' || estimation.status === 'submitted') {
+        const projectId = estimation.projectId;
+        
+        if (!projectMap.has(projectId)) {
+          projectMap.set(projectId, {
+            projectId,
+            projectName: estimation.projectName,
+            companyName: estimation.companyName,
+            categories: [],
+            totalEstimate: 0,
+            totalCommitted: 0,
+            totalUncommitted: 0,
+            totalActual: 0,
+            totalAnticipated: 0,
+            totalVariance: 0,
+            totalVariancePercent: 0,
+          });
+        }
+        
+        const project = projectMap.get(projectId)!;
+        
+        // Group items by category
+        const categoryMap = new Map<string, CategoryData>();
+        
+        estimation.items.forEach(item => {
+          if (!categoryMap.has(item.category)) {
+            const mock = MOCK_CATEGORY_DATA[item.category] || { actual: 0, committed: 0 };
+            categoryMap.set(item.category, {
+              category: item.category,
+              estimate: 0,
+              committed: mock.committed,
+              uncommitted: 0,
+              actual: mock.actual,
+              anticipated: 0,
+              variance: 0,
+              variancePercent: 0,
+              items: [],
+            });
+          }
+          
+          const category = categoryMap.get(item.category)!;
+          category.estimate += item.totalCost;
+          category.items.push(item);
+        });
+        
+        // Calculate category totals
+        categoryMap.forEach(category => {
+          category.uncommitted = Math.max(0, category.estimate - category.committed);
+          category.anticipated = category.actual + category.uncommitted;
+          category.variance = category.anticipated - category.estimate;
+          category.variancePercent = category.estimate > 0 ? (category.variance / category.estimate) * 100 : 0;
+          
+          project.categories.push(category);
+        });
+      }
+    });
+    
+    // Calculate project totals
+    projectMap.forEach(project => {
+      project.totalEstimate = project.categories.reduce((sum, cat) => sum + cat.estimate, 0);
+      project.totalCommitted = project.categories.reduce((sum, cat) => sum + cat.committed, 0);
+      project.totalUncommitted = project.categories.reduce((sum, cat) => sum + cat.uncommitted, 0);
+      project.totalActual = project.categories.reduce((sum, cat) => sum + cat.actual, 0);
+      project.totalAnticipated = project.categories.reduce((sum, cat) => sum + cat.anticipated, 0);
+      project.totalVariance = project.categories.reduce((sum, cat) => sum + cat.variance, 0);
+      project.totalVariancePercent = project.totalEstimate > 0 ? (project.totalVariance / project.totalEstimate) * 100 : 0;
+    });
+    
+    return Array.from(projectMap.values());
+  };
 
+  const projectData = getProjectData();
   const approvedEstimations = estimations.filter(est => est.status === 'approved' || est.status === 'submitted');
 
-  // Cost head mapping for getting items
-  const COST_HEAD_MAPPING: Record<string, string> = {
-    'OM01 - Material Cost': 'MATERIAL COST',
-    'OM02 - Manpower Cost': 'MANPOWER COST',
-    'OM03 - Subcontracting Cost': 'SUBCONTRACTING COST',
-    'OM04 - Equipment Cost': 'EQUIPMENT COST',
-    'OM05 - Transportation Cost': 'TRANSPORTATION COST',
-    'OM06 - Miscellaneous Cost': 'MISCELLANEOUS COST',
-  };
-
-  // Get items for a specific cost head
-  const getItemsForCostHead = (costHeadDisplay: string) => {
-    const items: any[] = [];
-    
-    // Find the original cost head key
-    const originalCostHead = Object.keys(COST_HEAD_MAPPING).find(
-      key => COST_HEAD_MAPPING[key] === costHeadDisplay
-    );
-
-    if (originalCostHead) {
-      // Get all estimations with this cost head
-      const relevantEstimations = projectEstimations.filter(
-        est => est.costHead === originalCostHead && (est.status === 'approved' || est.status === 'submitted')
-      );
-
-      // Collect all items from these estimations
-      relevantEstimations.forEach(estimation => {
-        estimation.items.forEach(item => {
-          items.push({
-            ...item,
-            estimationId: estimation.id,
-            vendor: estimation.vendor,
-            category: estimation.category,
-            estimatedBy: estimation.estimatedBy,
-          });
-        });
-      });
-    }
-
-    return items;
-  };
-
-  const toggleRowExpansion = (rowId: string) => {
-    const newExpandedRows = new Set(expandedRows);
-    if (newExpandedRows.has(rowId)) {
-      newExpandedRows.delete(rowId);
+  const toggleProjectExpansion = (projectId: string) => {
+    const newExpandedProjects = new Set(expandedProjects);
+    if (newExpandedProjects.has(projectId)) {
+      newExpandedProjects.delete(projectId);
     } else {
-      newExpandedRows.add(rowId);
+      newExpandedProjects.add(projectId);
     }
-    setExpandedRows(newExpandedRows);
+    setExpandedProjects(newExpandedProjects);
+  };
+
+  const toggleCategoryExpansion = (categoryKey: string) => {
+    const newExpandedCategories = new Set(expandedCategories);
+    if (newExpandedCategories.has(categoryKey)) {
+      newExpandedCategories.delete(categoryKey);
+    } else {
+      newExpandedCategories.add(categoryKey);
+    }
+    setExpandedCategories(newExpandedCategories);
+  };
+
+  const getCategoryBreakdownTooltip = (project: ProjectData) => {
+    const breakdown = project.categories.map(cat => 
+      `${cat.category}: ₹${cat.estimate.toLocaleString()}`
+    ).join('\n');
+    return `Category Breakdown:\n${breakdown}`;
   };
 
   return (
@@ -177,7 +254,7 @@ export default function CRSReport() {
           </Box>
         </Box>
 
-        {reportData.length === 0 ? (
+        {projectData.length === 0 ? (
           <Alert severity="info" sx={{ mb: 4 }}>
             No estimation data available. Please create cost estimations first to generate the CRS report.
             Go to the "Cost Estimation" tab to add estimations.
@@ -187,109 +264,83 @@ export default function CRSReport() {
             <Alert severity="success" sx={{ mb: 3 }}>
               This report is automatically updated based on your cost estimations. 
               Data reflects {approvedEstimations.length} approved/submitted estimation(s).
-              Click the arrow icons to view detailed items for each cost category.
+              Click the arrow icons to view detailed items for each project and category.
             </Alert>
 
             <TableContainer component={Paper} sx={{ mb: 4, boxShadow: 3 }}>
-              <Table size="small" sx={{ minWidth: 1000 }}>
+              <Table size="small" sx={{ minWidth: 1200 }}>
                 <TableHead>
                   <TableRow sx={{ bgcolor: 'primary.main' }}>
-                    <TableCell sx={{ color: 'white', fontWeight: 700, minWidth: 50 }}>
-                      {/* Expand/Collapse column */}
-                    </TableCell>
-                    <TableCell sx={{ color: 'white', fontWeight: 700, minWidth: 80 }}>
-                      Sl No.
-                    </TableCell>
-                    <TableCell sx={{ color: 'white', fontWeight: 700, minWidth: 300 }}>
-                      Particulars
-                    </TableCell>
-                    <TableCell sx={{ color: 'white', fontWeight: 700, textAlign: 'right', minWidth: 120 }}>
-                      Estimate<br />₹
-                    </TableCell>
-                    <TableCell sx={{ color: 'white', fontWeight: 700, textAlign: 'right', minWidth: 120 }}>
-                      Committed<br />₹
-                    </TableCell>
-                    <TableCell sx={{ color: 'white', fontWeight: 700, textAlign: 'right', minWidth: 120 }}>
-                      Uncommitted<br />₹
-                    </TableCell>
-                    <TableCell sx={{ color: 'white', fontWeight: 700, textAlign: 'right', minWidth: 120 }}>
-                      Actual<br />₹
-                    </TableCell>
-                    <TableCell sx={{ color: 'white', fontWeight: 700, textAlign: 'right', minWidth: 120 }}>
-                      Anticipated<br />Final Cost ₹
-                    </TableCell>
-                    <TableCell sx={{ color: 'white', fontWeight: 700, textAlign: 'right', minWidth: 120 }}>
-                      Variance<br />₹
-                    </TableCell>
-                    <TableCell sx={{ color: 'white', fontWeight: 700, textAlign: 'right', minWidth: 100 }}>
-                      Variance<br />%
-                    </TableCell>
+                    <TableCell sx={{ color: 'white', fontWeight: 700, minWidth: 50 }} />
+                    <TableCell sx={{ color: 'white', fontWeight: 700, minWidth: 200 }}>Project Name</TableCell>
+                    <TableCell sx={{ color: 'white', fontWeight: 700, minWidth: 150 }}>Company Name</TableCell>
+                    <TableCell sx={{ color: 'white', fontWeight: 700, textAlign: 'right', minWidth: 120 }}>Estimate<br />₹</TableCell>
+                    <TableCell sx={{ color: 'white', fontWeight: 700, textAlign: 'right', minWidth: 120 }}>Committed<br />₹</TableCell>
+                    <TableCell sx={{ color: 'white', fontWeight: 700, textAlign: 'right', minWidth: 120 }}>Uncommitted<br />₹</TableCell>
+                    <TableCell sx={{ color: 'white', fontWeight: 700, textAlign: 'right', minWidth: 120 }}>Actual<br />₹</TableCell>
+                    <TableCell sx={{ color: 'white', fontWeight: 700, textAlign: 'right', minWidth: 120 }}>Anticipated<br />Final Cost ₹</TableCell>
+                    <TableCell sx={{ color: 'white', fontWeight: 700, textAlign: 'right', minWidth: 120 }}>Variance<br />₹</TableCell>
+                    <TableCell sx={{ color: 'white', fontWeight: 700, textAlign: 'right', minWidth: 100 }}>Variance<br />%</TableCell>
                   </TableRow>
                 </TableHead>
                 <TableBody>
-                  {reportData.map((row, index) => {
-                    const items = getItemsForCostHead(row.particulars);
-                    const hasItems = items.length > 0;
-                    const isExpanded = expandedRows.has(row.slNo);
+                  {projectData.map((project) => {
+                    const isProjectExpanded = expandedProjects.has(project.projectId);
+                    const hasCategories = project.categories.length > 0;
                     
                     return (
-                      <React.Fragment key={row.slNo}>
-                        {/* Main Row */}
-                        <TableRow 
-                          hover
-                          sx={{ 
-                            '&:nth-of-type(odd)': { bgcolor: 'action.hover' },
-                            '&:hover': { bgcolor: 'action.selected' }
-                          }}
-                        >
+                      <React.Fragment key={project.projectId}>
+                        {/* Project Row */}
+                        <TableRow hover sx={{ bgcolor: 'background.default' }}>
                           <TableCell>
-                            {hasItems && (
+                            {hasCategories && (
                               <IconButton
                                 size="small"
-                                onClick={() => toggleRowExpansion(row.slNo)}
+                                onClick={() => toggleProjectExpansion(project.projectId)}
                                 sx={{ color: 'primary.main' }}
                               >
-                                {isExpanded ? <KeyboardArrowDown /> : <KeyboardArrowRight />}
+                                {isProjectExpanded ? <KeyboardArrowDown /> : <KeyboardArrowRight />}
                               </IconButton>
                             )}
                           </TableCell>
-                          <TableCell sx={{ fontWeight: 600, color: 'primary.main' }}>
-                            {row.slNo}
+                          <TableCell sx={{ fontWeight: 600, pl: hasCategories ? 0 : 2 }}>
+                            {project.projectName}
                           </TableCell>
-                          <TableCell sx={{ fontWeight: 500 }}>
-                            {row.particulars}
-                            {hasItems && (
-                              <Chip 
-                                label={`${items.length} items`} 
-                                size="small" 
-                                color="primary" 
-                                variant="outlined"
-                                sx={{ ml: 1 }}
-                              />
-                            )}
+                          <TableCell>{project.companyName}</TableCell>
+                          <TableCell align="right" sx={{ fontFamily: 'monospace' }}>
+                            <Tooltip 
+                              title={
+                                <Box sx={{ whiteSpace: 'pre-line', p: 1 }}>
+                                  {getCategoryBreakdownTooltip(project)}
+                                </Box>
+                              }
+                              arrow
+                              placement="top"
+                            >
+                              <span style={{ cursor: 'pointer', textDecoration: 'underline', color: '#1976d2' }}>
+                                {formatCurrency(project.totalEstimate)}
+                              </span>
+                            </Tooltip>
                           </TableCell>
                           <TableCell align="right" sx={{ fontFamily: 'monospace' }}>
-                            {formatCurrency(row.estimate)}
+                            {formatCurrency(project.totalCommitted)}
                           </TableCell>
                           <TableCell align="right" sx={{ fontFamily: 'monospace' }}>
-                            {formatCurrency(row.committed)}
+                            {formatCurrency(project.totalUncommitted)}
                           </TableCell>
                           <TableCell align="right" sx={{ fontFamily: 'monospace' }}>
-                            {formatCurrency(row.uncommitted)}
+                            {formatCurrency(project.totalActual)}
                           </TableCell>
                           <TableCell align="right" sx={{ fontFamily: 'monospace' }}>
-                            {formatCurrency(row.actual)}
-                          </TableCell>
-                          <TableCell align="right" sx={{ fontFamily: 'monospace' }}>
-                            {formatCurrency(row.anticipated)}
+                            {formatCurrency(project.totalAnticipated)}
                           </TableCell>
                           <TableCell align="right">
-                            {row.variance !== null && row.variance !== undefined ? (
+                            {project.totalVariance !== null && project.totalVariance !== undefined ? (
                               <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'flex-end', gap: 0.5 }}>
-                                {getVarianceIcon(row.variance)}
+                                {getVarianceIcon(project.totalVariance)}
                                 <Chip
-                                  label={formatCurrency(Math.abs(row.variance))}
-                                  color={getVarianceColor(row.variance)}
+                                  label={formatCurrency(Math.abs(project.totalVariance))}
+                                  color={getVarianceColor(project.totalVariance)}
                                   size="small"
                                   sx={{ fontFamily: 'monospace', minWidth: 80 }}
                                 />
@@ -299,126 +350,183 @@ export default function CRSReport() {
                             )}
                           </TableCell>
                           <TableCell align="right">
-                            {row.variancePercent !== null && row.variancePercent !== undefined ? (
+                            {project.totalVariancePercent !== null && project.totalVariancePercent !== undefined ? (
                               <Typography 
-                                color={row.variancePercent > 0 ? 'error.main' : 'success.main'}
+                                color={project.totalVariancePercent > 0 ? 'error.main' : 'success.main'}
                                 fontWeight={600}
                                 sx={{ fontFamily: 'monospace' }}
                               >
-                                {row.variancePercent > 0 ? '+' : ''}{row.variancePercent.toFixed(2)}%
+                                {project.totalVariancePercent > 0 ? '+' : ''}{project.totalVariancePercent.toFixed(2)}%
                               </Typography>
                             ) : (
                               '-'
                             )}
                           </TableCell>
                         </TableRow>
-
-                        {/* Expanded Items Row */}
-                        {hasItems && (
-                          <TableRow>
-                            <TableCell colSpan={10} sx={{ p: 0, border: 'none' }}>
-                              <Collapse in={isExpanded} timeout="auto" unmountOnExit>
-                                <Box sx={{ p: 2, bgcolor: 'background.default' }}>
-                                  <Typography variant="subtitle2" fontWeight={600} gutterBottom>
-                                    Detailed Items for {row.particulars}:
-                                  </Typography>
-                                  <Table size="small">
-                                    <TableHead>
-                                      <TableRow>
-                                        <TableCell sx={{ fontWeight: 600 }}>Item Description</TableCell>
-                                        <TableCell sx={{ fontWeight: 600 }}>Quantity</TableCell>
-                                        <TableCell sx={{ fontWeight: 600 }}>Unit</TableCell>
-                                        <TableCell sx={{ fontWeight: 600 }}>Unit Cost (₹)</TableCell>
-                                        <TableCell sx={{ fontWeight: 600 }}>Total Cost (₹)</TableCell>
-                                        <TableCell sx={{ fontWeight: 600 }}>Vendor</TableCell>
-                                        <TableCell sx={{ fontWeight: 600 }}>Category</TableCell>
-                                        <TableCell sx={{ fontWeight: 600 }}>Estimated By</TableCell>
-                                      </TableRow>
-                                    </TableHead>
-                                    <TableBody>
-                                      {items.map((item, itemIndex) => (
-                                        <TableRow key={`${item.id}-${itemIndex}`} hover>
-                                          <TableCell sx={{ fontWeight: 500 }}>
-                                            {item.description}
-                                          </TableCell>
-                                          <TableCell>{item.quantity}</TableCell>
-                                          <TableCell>{item.unit}</TableCell>
-                                          <TableCell sx={{ fontFamily: 'monospace' }}>
-                                            ₹{item.unitCost.toLocaleString()}
-                                          </TableCell>
-                                          <TableCell sx={{ fontFamily: 'monospace', fontWeight: 600 }}>
-                                            ₹{item.totalCost.toLocaleString()}
-                                          </TableCell>
-                                          <TableCell>
-                                            {item.vendor || '-'}
-                                          </TableCell>
-                                          <TableCell>
-                                            <Chip 
-                                              label={item.category} 
-                                              size="small" 
-                                              color="secondary" 
-                                              variant="outlined"
-                                            />
-                                          </TableCell>
-                                          <TableCell>{item.estimatedBy}</TableCell>
-                                        </TableRow>
-                                      ))}
-                                    </TableBody>
-                                  </Table>
-                                </Box>
-                              </Collapse>
-                            </TableCell>
-                          </TableRow>
-                        )}
+                        
+                        {/* Category Rows */}
+                        {isProjectExpanded && project.categories.map((category) => {
+                          const categoryKey = `${project.projectId}-${category.category}`;
+                          const isCategoryExpanded = expandedCategories.has(categoryKey);
+                          
+                          return (
+                            <React.Fragment key={categoryKey}>
+                              <TableRow hover sx={{ bgcolor: 'grey.50' }}>
+                                <TableCell>
+                                  <IconButton
+                                    size="small"
+                                    onClick={() => toggleCategoryExpansion(categoryKey)}
+                                    sx={{ color: 'primary.main', ml: 2 }}
+                                  >
+                                    {isCategoryExpanded ? <KeyboardArrowDown /> : <KeyboardArrowRight />}
+                                  </IconButton>
+                                </TableCell>
+                                <TableCell sx={{ pl: 4, fontWeight: 500 }}>
+                                  {category.category}
+                                </TableCell>
+                                <TableCell>{project.companyName}</TableCell>
+                                <TableCell align="right" sx={{ fontFamily: 'monospace' }}>
+                                  {formatCurrency(category.estimate)}
+                                </TableCell>
+                                <TableCell align="right" sx={{ fontFamily: 'monospace' }}>
+                                  {formatCurrency(category.committed)}
+                                </TableCell>
+                                <TableCell align="right" sx={{ fontFamily: 'monospace' }}>
+                                  {formatCurrency(category.uncommitted)}
+                                </TableCell>
+                                <TableCell align="right" sx={{ fontFamily: 'monospace' }}>
+                                  {formatCurrency(category.actual)}
+                                </TableCell>
+                                <TableCell align="right" sx={{ fontFamily: 'monospace' }}>
+                                  {formatCurrency(category.anticipated)}
+                                </TableCell>
+                                <TableCell align="right">
+                                  {category.variance !== null && category.variance !== undefined ? (
+                                    <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'flex-end', gap: 0.5 }}>
+                                      {getVarianceIcon(category.variance)}
+                                      <Chip
+                                        label={formatCurrency(Math.abs(category.variance))}
+                                        color={getVarianceColor(category.variance)}
+                                        size="small"
+                                        sx={{ fontFamily: 'monospace', minWidth: 80 }}
+                                      />
+                                    </Box>
+                                  ) : (
+                                    '-'
+                                  )}
+                                </TableCell>
+                                <TableCell align="right">
+                                  {category.variancePercent !== null && category.variancePercent !== undefined ? (
+                                    <Typography 
+                                      color={category.variancePercent > 0 ? 'error.main' : 'success.main'}
+                                      fontWeight={600}
+                                      sx={{ fontFamily: 'monospace' }}
+                                    >
+                                      {category.variancePercent > 0 ? '+' : ''}{category.variancePercent.toFixed(2)}%
+                                    </Typography>
+                                  ) : (
+                                    '-'
+                                  )}
+                                </TableCell>
+                              </TableRow>
+                              
+                              {/* Expanded Items Row */}
+                              {isCategoryExpanded && category.items.length > 0 && (
+                                <TableRow>
+                                  <TableCell colSpan={10} sx={{ p: 0, border: 'none' }}>
+                                    <Collapse in={isCategoryExpanded} timeout="auto" unmountOnExit>
+                                      <Box sx={{ p: 2, bgcolor: 'background.default' }}>
+                                        <Typography variant="subtitle2" fontWeight={600} gutterBottom>
+                                          Items in {category.category}:
+                                        </Typography>
+                                        <Table size="small">
+                                          <TableHead>
+                                            <TableRow>
+                                              <TableCell sx={{ fontWeight: 600 }}>Part Number</TableCell>
+                                              <TableCell sx={{ fontWeight: 600 }}>Part Description</TableCell>
+                                              <TableCell sx={{ fontWeight: 600 }}>Quantity</TableCell>
+                                              <TableCell sx={{ fontWeight: 600 }}>Unit</TableCell>
+                                              <TableCell sx={{ fontWeight: 600 }}>Unit Cost (₹)</TableCell>
+                                              <TableCell sx={{ fontWeight: 600 }}>Total Cost (₹)</TableCell>
+                                            </TableRow>
+                                          </TableHead>
+                                          <TableBody>
+                                            {category.items.map((item, itemIndex) => (
+                                              <TableRow key={`${item.id}-${itemIndex}`} hover>
+                                                <TableCell>{item.partNumber}</TableCell>
+                                                <TableCell>{item.partDescription}</TableCell>
+                                                <TableCell>{item.quantity}</TableCell>
+                                                <TableCell>{item.unit}</TableCell>
+                                                <TableCell sx={{ fontFamily: 'monospace' }}>₹{item.unitCost.toLocaleString()}</TableCell>
+                                                <TableCell sx={{ fontFamily: 'monospace', fontWeight: 600 }}>₹{item.totalCost.toLocaleString()}</TableCell>
+                                              </TableRow>
+                                            ))}
+                                          </TableBody>
+                                        </Table>
+                                      </Box>
+                                    </Collapse>
+                                  </TableCell>
+                                </TableRow>
+                              )}
+                            </React.Fragment>
+                          );
+                        })}
                       </React.Fragment>
                     );
                   })}
                   
                   {/* Total Row */}
-                  <TableRow sx={{ 
-                    bgcolor: 'primary.dark', 
-                    '& td': { 
-                      fontWeight: 700, 
-                      color: 'white',
-                      borderTop: '2px solid',
-                      borderColor: 'primary.main'
-                    } 
-                  }}>
-                    <TableCell sx={{ color: 'white !important' }}></TableCell>
-                    <TableCell sx={{ color: 'white !important' }}>TOTAL</TableCell>
-                    <TableCell sx={{ color: 'white !important' }}>GRAND TOTAL</TableCell>
-                    <TableCell align="right" sx={{ fontFamily: 'monospace', color: 'white !important' }}>
-                      {formatCurrency(totalEstimate)}
-                    </TableCell>
-                    <TableCell align="right" sx={{ fontFamily: 'monospace', color: 'white !important' }}>
-                      {formatCurrency(totalCommitted)}
-                    </TableCell>
-                    <TableCell align="right" sx={{ fontFamily: 'monospace', color: 'white !important' }}>
-                      {formatCurrency(totalUncommitted)}
-                    </TableCell>
-                    <TableCell align="right" sx={{ fontFamily: 'monospace', color: 'white !important' }}>
-                      {formatCurrency(totalActual)}
-                    </TableCell>
-                    <TableCell align="right" sx={{ fontFamily: 'monospace', color: 'white !important' }}>
-                      {formatCurrency(totalAnticipated)}
-                    </TableCell>
-                    <TableCell align="right" sx={{ color: 'white !important' }}>
-                      <Chip
-                        label={formatCurrency(Math.abs(totalVariance))}
-                        color={totalVariance > 0 ? 'error' : 'success'}
-                        size="small"
-                        sx={{ 
-                          fontFamily: 'monospace', 
-                          minWidth: 80,
-                          bgcolor: totalVariance > 0 ? 'error.light' : 'success.light',
-                          color: 'white !important'
-                        }}
-                      />
-                    </TableCell>
-                    <TableCell align="right" sx={{ fontFamily: 'monospace', color: 'white !important' }}>
-                      {totalVariancePercent > 0 ? '+' : ''}{totalVariancePercent.toFixed(2)}%
-                    </TableCell>
-                  </TableRow>
+                  {projectData.length > 0 && (
+                    <TableRow sx={{ 
+                      bgcolor: 'primary.dark', 
+                      '& td': { 
+                        fontWeight: 700, 
+                        color: 'white',
+                        borderTop: '2px solid',
+                        borderColor: 'primary.main'
+                      } 
+                    }}>
+                      <TableCell sx={{ color: 'white !important' }}></TableCell>
+                      <TableCell sx={{ color: 'white !important' }}>TOTAL</TableCell>
+                      <TableCell sx={{ color: 'white !important' }}></TableCell>
+                      <TableCell align="right" sx={{ fontFamily: 'monospace', color: 'white !important' }}>
+                        {formatCurrency(projectData.reduce((sum, p) => sum + (p.totalEstimate || 0), 0))}
+                      </TableCell>
+                      <TableCell align="right" sx={{ fontFamily: 'monospace', color: 'white !important' }}>
+                        {formatCurrency(projectData.reduce((sum, p) => sum + (p.totalCommitted || 0), 0))}
+                      </TableCell>
+                      <TableCell align="right" sx={{ fontFamily: 'monospace', color: 'white !important' }}>
+                        {formatCurrency(projectData.reduce((sum, p) => sum + (p.totalUncommitted || 0), 0))}
+                      </TableCell>
+                      <TableCell align="right" sx={{ fontFamily: 'monospace', color: 'white !important' }}>
+                        {formatCurrency(projectData.reduce((sum, p) => sum + (p.totalActual || 0), 0))}
+                      </TableCell>
+                      <TableCell align="right" sx={{ fontFamily: 'monospace', color: 'white !important' }}>
+                        {formatCurrency(projectData.reduce((sum, p) => sum + (p.totalAnticipated || 0), 0))}
+                      </TableCell>
+                      <TableCell align="right" sx={{ color: 'white !important' }}>
+                        <Chip
+                          label={formatCurrency(Math.abs(projectData.reduce((sum, p) => sum + (p.totalVariance || 0), 0)))}
+                          color={projectData.reduce((sum, p) => sum + (p.totalVariance || 0), 0) > 0 ? 'error' : 'success'}
+                          size="small"
+                          sx={{ 
+                            fontFamily: 'monospace', 
+                            minWidth: 80,
+                            bgcolor: projectData.reduce((sum, p) => sum + (p.totalVariance || 0), 0) > 0 ? 'error.light' : 'success.light',
+                            color: 'white !important'
+                          }}
+                        />
+                      </TableCell>
+                      <TableCell align="right" sx={{ fontFamily: 'monospace', color: 'white !important' }}>
+                        {(() => {
+                          const totalEstimate = projectData.reduce((sum, p) => sum + (p.totalEstimate || 0), 0);
+                          const totalVariance = projectData.reduce((sum, p) => sum + (p.totalVariance || 0), 0);
+                          const variancePercent = totalEstimate > 0 ? (totalVariance / totalEstimate) * 100 : 0;
+                          return `${variancePercent > 0 ? '+' : ''}${variancePercent.toFixed(2)}%`;
+                        })()}
+                      </TableCell>
+                    </TableRow>
+                  )}
                 </TableBody>
               </Table>
             </TableContainer>
@@ -446,7 +554,7 @@ export default function CRSReport() {
                       Total Estimate
                     </Typography>
                     <Typography variant="h4" fontWeight={700}>
-                      ₹{(totalEstimate / 1000).toFixed(1)}K
+                      ₹{(projectData.reduce((sum, p) => sum + (p.totalEstimate || 0), 0) / 1000).toFixed(1)}K
                     </Typography>
                   </CardContent>
                 </Card>
@@ -458,22 +566,30 @@ export default function CRSReport() {
                       Total Actual
                     </Typography>
                     <Typography variant="h4" fontWeight={700}>
-                      ₹{(totalActual / 1000).toFixed(1)}K
+                      ₹{(projectData.reduce((sum, p) => sum + (p.totalActual || 0), 0) / 1000).toFixed(1)}K
                     </Typography>
                   </CardContent>
                 </Card>
               </Grid>
               <Grid item xs={12} md={3}>
-                <Card sx={{ bgcolor: totalVariance > 0 ? 'error.main' : 'success.main', color: 'white' }}>
+                <Card sx={{ 
+                  bgcolor: projectData.reduce((sum, p) => sum + (p.totalVariance || 0), 0) > 0 ? 'error.main' : 'success.main', 
+                  color: 'white' 
+                }}>
                   <CardContent sx={{ textAlign: 'center' }}>
                     <Typography variant="h6" fontWeight={600}>
                       Total Variance
                     </Typography>
                     <Typography variant="h4" fontWeight={700}>
-                      {totalVariance > 0 ? '+' : ''}₹{(totalVariance / 1000).toFixed(1)}K
+                      {projectData.reduce((sum, p) => sum + (p.totalVariance || 0), 0) > 0 ? '+' : ''}₹{(projectData.reduce((sum, p) => sum + (p.totalVariance || 0), 0) / 1000).toFixed(1)}K
                     </Typography>
                     <Typography variant="body2">
-                      ({totalVariancePercent > 0 ? '+' : ''}{totalVariancePercent.toFixed(1)}%)
+                      {(() => {
+                        const totalEstimate = projectData.reduce((sum, p) => sum + (p.totalEstimate || 0), 0);
+                        const totalVariance = projectData.reduce((sum, p) => sum + (p.totalVariance || 0), 0);
+                        const variancePercent = totalEstimate > 0 ? (totalVariance / totalEstimate) * 100 : 0;
+                        return `(${variancePercent > 0 ? '+' : ''}${variancePercent.toFixed(1)}%)`;
+                      })()}
                     </Typography>
                   </CardContent>
                 </Card>
@@ -508,8 +624,18 @@ export default function CRSReport() {
               <strong>Next Review:</strong> {new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toLocaleDateString()}
             </Typography>
             <Chip 
-              label={Math.abs(totalVariancePercent) > 5 ? "Requires Attention" : "On Track"} 
-              color={Math.abs(totalVariancePercent) > 5 ? "warning" : "success"} 
+              label={(() => {
+                const totalEstimate = projectData.reduce((sum, p) => sum + (p.totalEstimate || 0), 0);
+                const totalVariance = projectData.reduce((sum, p) => sum + (p.totalVariance || 0), 0);
+                const variancePercent = totalEstimate > 0 ? Math.abs(totalVariance / totalEstimate) * 100 : 0;
+                return variancePercent > 5 ? "Requires Attention" : "On Track";
+              })()} 
+              color={(() => {
+                const totalEstimate = projectData.reduce((sum, p) => sum + (p.totalEstimate || 0), 0);
+                const totalVariance = projectData.reduce((sum, p) => sum + (p.totalVariance || 0), 0);
+                const variancePercent = totalEstimate > 0 ? Math.abs(totalVariance / totalEstimate) * 100 : 0;
+                return variancePercent > 5 ? "warning" : "success";
+              })()} 
               size="small"
             />
           </Box>

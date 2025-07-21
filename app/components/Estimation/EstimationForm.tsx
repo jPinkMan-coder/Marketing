@@ -34,8 +34,9 @@ import * as XLSX from 'xlsx';
 import Papa from 'papaparse';
 
 interface EstimationItem {
- 
-  description: string;
+  partNumber: string;
+  partDescription: string;
+  category: string;
   quantity: number;
   unit: string;
   unitCost: number;
@@ -44,24 +45,24 @@ interface EstimationItem {
 
 interface EstimationFormData {
   projectId: string;
-  costHead: string;
-  category: string;
-  vendor: string;
-  estimatedBy: string;
+  projectName: string;
+  company: string;
+  companyName: string;
+  baseCurrency: string;
+  status: string;
   items: EstimationItem[];
-  notes: string;
 }
 
-const costHeads = [
-  'OM01 - Material Cost',
-  'OM02 - Manpower Cost',
-  'OM03 - Subcontracting Cost',
-  'OM04 - Equipment Cost',
-  'OM05 - Transportation Cost',
-  'OM06 - Miscellaneous Cost',
-];
+const statusOptions = ["Pending", "Approved", "Rejected"];
 
-const categories = ['Materials', 'Labor', 'Equipment', 'Services', 'Other'];
+const costHeads = [
+  'Material Cost',
+  'Manpower Cost',
+  'Subcontracting Cost',
+  'Equipment Cost',
+  'Transportation Cost',
+  'Miscellaneous Cost',
+];
 
 export default function EstimationForm() {
   const { addEstimation } = useEstimation();
@@ -75,9 +76,13 @@ export default function EstimationForm() {
 
   const { register, control, handleSubmit, watch, setValue, reset, getValues } = useForm<EstimationFormData>({
     defaultValues: {
-      projectId: currentProject?.id || '',
-      estimatedBy: user?.name || '',
-      items: [] // Start with no items
+      projectId: '',
+      projectName: '',
+      company: '',
+      companyName: '',
+      baseCurrency: '',
+      status: '',
+      items: []
     }
   });
 
@@ -102,31 +107,28 @@ export default function EstimationForm() {
       const itemsWithIds = data.items.map((item, index) => ({
         ...item,
         id: `${Date.now()}-${index}`,
-        costHead: data.costHead,
       }));
 
       addEstimation({
         projectId: data.projectId,
-        costHead: data.costHead,
-        category: data.category,
-        vendor: data.vendor,
-        estimatedBy: data.estimatedBy,
+        projectName: data.projectName,
+        company: data.company,
+        companyName: data.companyName,
+        baseCurrency: data.baseCurrency,
+        status: isDraft ? "draft" : "submitted",
         items: itemsWithIds,
-        notes: data.notes,
-        status: isDraft ? 'draft' : 'submitted',
       });
 
       setShowSuccess(true);
-      
       // Reset form after successful submission
       reset({
-        projectId: currentProject?.id || '',
-        estimatedBy: user?.name || '',
-        costHead: '',
-        category: '',
-        vendor: '',
-        notes: '',
-        items: [] // Reset to no items
+        projectId: '',
+        projectName: '',
+        company: '',
+        companyName: '',
+        baseCurrency: '',
+        status: '',
+        items: []
       });
     } catch (error) {
       console.error('Error saving estimation:', error);
@@ -212,22 +214,41 @@ export default function EstimationForm() {
 
   const processUploadedData = (data: any[], fileName: string) => {
     try {
+      console.log('Raw Excel Data:', JSON.stringify(data, null, 2));
+
       // Define possible column name variations
       const columnMappings = {
-        description: ['description', 'item', 'item description', 'particulars', 'details'],
-        quantity: ['quantity', 'qty', 'amount', 'number'],
-        unit: ['unit', 'uom', 'unit of measurement', 'measure'],
-        unitCost: ['unit cost', 'unitcost', 'rate', 'price', 'unit price', 'cost per unit'],
+        partNumber: ['part number', 'partnumber', 'inventory code', 'code', 'part no', 'part no.', 'partno'],
+        partDescription: ['part description', 'description', 'item description', 'details', 'desc', 'part desc'],
+        category: ['category', 'cost head', 'cost category', 'type', 'Category'],
+        quantity: ['quantity', 'qty', 'amount', 'number', 'nos', 'no.', 'nos.'],
+        unit: ['unit', 'uom', 'unit of measurement', 'measure', 'units'],
+        unitCost: ['unit cost', 'unitcost', 'rate', 'price', 'unit price', 'cost per unit', 'cost', 'unit rate'],
         totalCost: ['total cost', 'totalcost', 'total', 'amount', 'total amount', 'total price']
       };
 
-      // Find matching columns (case-insensitive)
       const findColumn = (possibleNames: string[], headers: string[]) => {
-        return headers.find(header => 
-          possibleNames.some(name => 
-            header.toLowerCase().trim() === name.toLowerCase()
-          )
+        // First try exact match
+        let found = headers.find(header => 
+          possibleNames.some(name => header.toLowerCase().trim() === name.toLowerCase().trim())
         );
+
+        // If no exact match, try includes
+        if (!found) {
+          found = headers.find(header => 
+            possibleNames.some(name => 
+              header.toLowerCase().trim().includes(name.toLowerCase().trim()) ||
+              name.toLowerCase().trim().includes(header.toLowerCase().trim())
+            )
+          );
+        }
+
+        console.log(`Column Search:
+          Looking for: ${possibleNames.join(', ')}
+          Available headers: ${headers.join(', ')}
+          Found: ${found || 'NOT FOUND'}`
+        );
+        return found;
       };
 
       if (data.length === 0) {
@@ -238,21 +259,36 @@ export default function EstimationForm() {
       }
 
       const headers = Object.keys(data[0]);
-      const descriptionCol = findColumn(columnMappings.description, headers);
+      console.log('Excel Headers:', headers);
+
+      const partNumberCol = findColumn(columnMappings.partNumber, headers);
+      const partDescriptionCol = findColumn(columnMappings.partDescription, headers);
+      const categoryCol = findColumn(columnMappings.category, headers);
       const quantityCol = findColumn(columnMappings.quantity, headers);
       const unitCol = findColumn(columnMappings.unit, headers);
       const unitCostCol = findColumn(columnMappings.unitCost, headers);
 
+      console.log('Found Columns:', {
+        partNumberCol,
+        partDescriptionCol,
+        categoryCol,
+        quantityCol,
+        unitCol,
+        unitCostCol
+      });
+
       // Validate required columns
       const missingColumns = [];
-      if (!descriptionCol) missingColumns.push('Description');
+      if (!partNumberCol) missingColumns.push('Part Number');
+      if (!partDescriptionCol) missingColumns.push('Part Description');
+      if (!categoryCol) missingColumns.push('Category');
       if (!quantityCol) missingColumns.push('Quantity');
       if (!unitCol) missingColumns.push('Unit');
       if (!unitCostCol) missingColumns.push('Unit Cost');
 
       if (missingColumns.length > 0) {
         setUploadProgress(false);
-        setUploadMessage(`Missing required columns: ${missingColumns.join(', ')}. Available columns: ${headers.join(', ')}`);
+        setUploadMessage(`Missing required columns: ${missingColumns.join(', ')}.\nAvailable columns: ${headers.join(', ')}`);
         setUploadSeverity('error');
         return;
       }
@@ -262,36 +298,71 @@ export default function EstimationForm() {
       const errors: string[] = [];
 
       data.forEach((row, index) => {
-        const rowNumber = index + 2; // +2 because index starts at 0 and we skip header
+        const rowNumber = index + 2; // Excel row number (1-based + header row)
         
         // Skip empty rows
-        if (!row[descriptionCol!] && !row[quantityCol!] && !row[unitCol!] && !row[unitCostCol!]) {
+        if (!row[partNumberCol!] && !row[partDescriptionCol!] && !row[categoryCol!] && !row[quantityCol!] && !row[unitCol!] && !row[unitCostCol!]) {
           return;
         }
 
-        const description = String(row[descriptionCol!] || '').trim();
+        const partNumber = String(row[partNumberCol!] || '').trim();
+        const partDescription = String(row[partDescriptionCol!] || '').trim();
+        const rawCategory = String(row[categoryCol!] || '').trim();
+        
+        console.log(`Processing Row ${rowNumber}:`, {
+          partNumber,
+          partDescription,
+          rawCategory,
+          rawCategoryValue: row[categoryCol!],
+          fullRow: row
+        });
+
+        // Improved category matching
+        let category = '';
+        
+        // First try exact match
+        category = costHeads.find(c => c.toLowerCase() === rawCategory.toLowerCase()) || '';
+        
+        // If no exact match, try partial match
+        if (!category) {
+          for (const validCategory of costHeads) {
+            if (validCategory.toLowerCase().includes(rawCategory.toLowerCase()) || 
+                rawCategory.toLowerCase().includes(validCategory.toLowerCase())) {
+              category = validCategory;
+              break;
+            }
+          }
+        }
+
+        // Try matching just the first word
+        if (!category) {
+          const firstWord = rawCategory.split(' ')[0].toLowerCase();
+          category = costHeads.find(c => c.toLowerCase().startsWith(firstWord)) || '';
+        }
+
+        console.log(`Category Matching for Row ${rowNumber}:
+          Raw Category: "${rawCategory}"
+          Matched Category: "${category}"
+          Available Categories: ${costHeads.join(', ')}`
+        );
+
         const quantity = parseFloat(row[quantityCol!]) || 0;
         const unit = String(row[unitCol!] || '').trim();
         const unitCost = parseFloat(row[unitCostCol!]) || 0;
         const totalCost = quantity * unitCost;
 
-        // Validate required fields
-        if (!description) {
-          errors.push(`Row ${rowNumber}: Description is required`);
-        }
-        if (quantity <= 0) {
-          errors.push(`Row ${rowNumber}: Quantity must be greater than 0`);
-        }
-        if (!unit) {
-          errors.push(`Row ${rowNumber}: Unit is required`);
-        }
-        if (unitCost <= 0) {
-          errors.push(`Row ${rowNumber}: Unit Cost must be greater than 0`);
-        }
+        if (!partNumber) errors.push(`Row ${rowNumber}: Part Number is required`);
+        if (!partDescription) errors.push(`Row ${rowNumber}: Part Description is required`);
+        if (!category) errors.push(`Row ${rowNumber}: Category '${rawCategory}' is invalid. Must be one of: ${costHeads.join(', ')}`);
+        if (quantity <= 0) errors.push(`Row ${rowNumber}: Quantity must be greater than 0`);
+        if (!unit) errors.push(`Row ${rowNumber}: Unit is required`);
+        if (unitCost <= 0) errors.push(`Row ${rowNumber}: Unit Cost must be greater than 0`);
 
-        if (description && quantity > 0 && unit && unitCost > 0) {
+        if (partNumber && partDescription && category && quantity > 0 && unit && unitCost > 0) {
           validItems.push({
-            description,
+            partNumber,
+            partDescription,
+            category,
             quantity,
             unit,
             unitCost,
@@ -300,19 +371,21 @@ export default function EstimationForm() {
         }
       });
 
-      setUploadProgress(false);
+      console.log('Processing Results:', {
+        validItems,
+        errors
+      });
 
+      setUploadProgress(false);
       if (errors.length > 0) {
-        setUploadMessage(`Found ${errors.length} error(s):\n${errors.slice(0, 5).join('\n')}${errors.length > 5 ? '\n...and more' : ''}`);
+        setUploadMessage(`Found ${errors.length} error(s):\n${errors.join('\n')}`);
         setUploadSeverity('warning');
       }
 
       if (validItems.length > 0) {
-        // Add valid items to the form
         const currentItems = getValues('items');
         const newItems = [...currentItems, ...validItems];
         replace(newItems);
-        
         setUploadDialog(false);
         setUploadMessage(`Successfully imported ${validItems.length} item(s) from ${fileName}${errors.length > 0 ? ` (${errors.length} rows had errors)` : ''}`);
         setUploadSeverity(errors.length > 0 ? 'warning' : 'success');
@@ -321,6 +394,7 @@ export default function EstimationForm() {
         setUploadSeverity('error');
       }
     } catch (error) {
+      console.error('Error processing file:', error);
       setUploadProgress(false);
       setUploadMessage(`Error processing file: ${error}`);
       setUploadSeverity('error');
@@ -341,58 +415,48 @@ export default function EstimationForm() {
                 <TextField
                   fullWidth
                   label="Project ID"
-                  value={currentProject?.code || ''}
-                  InputProps={{ readOnly: true }}
                   {...register('projectId')}
                 />
               </Grid>
-              
               <Grid item xs={12} md={6}>
                 <TextField
                   fullWidth
-                  label="Cost Head"
-                  select
-                  {...register('costHead', { required: true })}
-                >
-                  {costHeads.map((head) => (
-                    <MenuItem key={head} value={head}>
-                      {head}
-                    </MenuItem>
-                  ))}
-                </TextField>
-              </Grid>
-              
-              <Grid item xs={12} md={6}>
-                <TextField
-                  fullWidth
-                  label="Category"
-                  select
-                  {...register('category', { required: true })}
-                >
-                  {categories.map((category) => (
-                    <MenuItem key={category} value={category}>
-                      {category}
-                    </MenuItem>
-                  ))}
-                </TextField>
-              </Grid>
-              
-              <Grid item xs={12} md={6}>
-                <TextField
-                  fullWidth
-                  label="Vendor/Supplier"
-                  {...register('vendor')}
+                  label="Project Name"
+                  {...register('projectName')}
                 />
               </Grid>
-              
               <Grid item xs={12} md={6}>
                 <TextField
                   fullWidth
-                  label="Estimated By"
-                  value={user?.name || ''}
-                  InputProps={{ readOnly: true }}
-                  {...register('estimatedBy', { required: true })}
+                  label="Company"
+                  {...register('company')}
                 />
+              </Grid>
+              <Grid item xs={12} md={6}>
+                <TextField
+                  fullWidth
+                  label="Company Name"
+                  {...register('companyName')}
+                />
+              </Grid>
+              <Grid item xs={12} md={6}>
+                <TextField
+                  fullWidth
+                  label="Base Currency"
+                  {...register('baseCurrency')}
+                />
+              </Grid>
+              <Grid item xs={12} md={6}>
+                <TextField
+                  fullWidth
+                  label="Status"
+                  select
+                  {...register('status', { required: true })}
+                >
+                  {statusOptions.map((option) => (
+                    <MenuItem key={option} value={option}>{option}</MenuItem>
+                  ))}
+                </TextField>
               </Grid>
             </Grid>
 
@@ -413,7 +477,7 @@ export default function EstimationForm() {
                 </Button>
                 <Button
                   startIcon={<Add />}
-                  onClick={() => append({ description: '', quantity: 1, unit: '', unitCost: 0, totalCost: 0 })}
+                  onClick={() => append({ partNumber: '', partDescription: '', category: '', quantity: 1, unit: '', unitCost: 0, totalCost: 0 })}
                   variant="outlined"
                 >
                   Add Item
@@ -425,19 +489,21 @@ export default function EstimationForm() {
               <Table>
                 <TableHead>
                   <TableRow>
-                    <TableCell>Description</TableCell>
+                    <TableCell>Part Number</TableCell>
+                    <TableCell>Part Description</TableCell>
+                    <TableCell>Category</TableCell>
                     <TableCell>Quantity</TableCell>
                     <TableCell>Unit</TableCell>
-                    <TableCell>Unit Cost (₹)</TableCell>
-                    <TableCell>Total Cost (₹)</TableCell>
+                    <TableCell>Unit Cost</TableCell>
+                    <TableCell>Total Cost</TableCell>
                     <TableCell width="50">Action</TableCell>
                   </TableRow>
                 </TableHead>
                 <TableBody>
                   {fields.length === 0 ? (
                     <TableRow>
-                      <TableCell colSpan={6} align="center">
-                        No row found
+                      <TableCell colSpan={8} align="center">
+                        Please add items to the estimation
                       </TableCell>
                     </TableRow>
                   ) : (
@@ -447,8 +513,26 @@ export default function EstimationForm() {
                           <TextField
                             fullWidth
                             size="small"
-                            {...register(`items.${index}.description`)}
+                            {...register(`items.${index}.partNumber`)}
                           />
+                        </TableCell>
+                        <TableCell>
+                          <TextField
+                            fullWidth
+                            size="small"
+                            {...register(`items.${index}.partDescription`)}
+                          />
+                        </TableCell>
+                        <TableCell>
+                          <TextField
+                            fullWidth
+                            size="small"
+                           
+                            {...register(`items.${index}.category`)}
+                            
+                          >
+                           
+                          </TextField>
                         </TableCell>
                         <TableCell>
                           <TextField
@@ -506,7 +590,7 @@ export default function EstimationForm() {
                           <IconButton
                             size="small"
                             onClick={() => remove(index)}
-                            disabled={fields.length === 1}
+                           
                             color="error"
                           >
                             <Delete />
@@ -532,7 +616,10 @@ export default function EstimationForm() {
                   label="Notes/Comments"
                   multiline
                   rows={3}
-                  {...register('notes')}
+                  // Remove notes from form
+                  // {...register('notes')}
+                  disabled
+                  value="Notes/Comments field removed as per new requirements."
                 />
               </Grid>
             </Grid>
@@ -571,8 +658,9 @@ export default function EstimationForm() {
               Upload an Excel (.xlsx, .xls) or CSV file with the following columns:
             </Typography>
             <Box component="ul" sx={{ mt: 1, pl: 2 }}>
-            <Typography component="li" variant="body2"><strong>Inventory Code</strong> - Inventory Code</Typography>
-              <Typography component="li" variant="body2"><strong>Description</strong> - Item description</Typography>
+            <Typography component="li" variant="body2"><strong>Part Number</strong> - Inventory Code</Typography>
+              <Typography component="li" variant="body2"><strong>Part Description</strong> - Item description</Typography>
+              <Typography component="li" variant="body2"><strong>Category</strong> - Category</Typography>
               <Typography component="li" variant="body2"><strong>Quantity</strong> - Number of items</Typography>
               <Typography component="li" variant="body2"><strong>Unit</strong> - Unit of measurement</Typography>
               <Typography component="li" variant="body2"><strong>Unit Cost</strong> - Cost per unit</Typography>
