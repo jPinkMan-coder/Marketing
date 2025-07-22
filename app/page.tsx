@@ -47,17 +47,8 @@ export default function Home() {
             <Typography variant="h4" component="h1" gutterBottom fontWeight={700}>
               Dashboard Overview
             </Typography>
-            <Typography 
-              variant="body1" 
-              color="text.secondary" 
-              sx={{ 
-                mb: 4,
-                maxWidth: '100%',
-                wordWrap: 'break-word',
-                lineHeight: 1.6
-              }}
-            >
-              Track project costs, monitor variances, and manage financial performance
+            <Typography variant="body1" color="text.secondary" sx={{ mb: 4 }}>
+              Monitor project costs and financial performance
             </Typography>
             
             <Grid container spacing={3} sx={{ mb: 4 }}>
