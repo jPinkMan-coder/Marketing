@@ -30,14 +30,9 @@ const collapsedSidebarWidth = 64;
 
 export default function Home() {
   const [activeTab, setActiveTab] = useState('dashboard');
-  const [sidebarExpanded, setSidebarExpanded] = useState(false);
   const { getProjectSummary } = useEstimation();
   
   const projectSummary = getProjectSummary();
-
-  const handleSidebarExpandedChange = useCallback((expanded: boolean) => {
-    setSidebarExpanded(expanded);
-  }, []);
 
   const renderContent = () => {
     switch (activeTab) {
@@ -155,26 +150,25 @@ export default function Home() {
   };
 
   return (
-    <Box sx={{ display: 'flex', minHeight: '100vh' }}>
-      <Header sidebarExpanded={sidebarExpanded} />
+    <Box sx={{ display: 'flex', minHeight: '100vh', overflow: 'hidden' }}>
+      <Header sidebarExpanded={false} />
       <Sidebar 
         activeTab={activeTab} 
         setActiveTab={setActiveTab}
-        onExpandedChange={handleSidebarExpandedChange}
       />
       
       <Box
         component="main"
         sx={{
           flexGrow: 1,
-          ml: `${collapsedSidebarWidth}px`,
-          pt: '88px', // Header height (64px) + padding (24px)
-          p: 3,
+          width: '100%',
+          pt: '80px', // Header height (64px) + padding (16px)
+          px: 3,
+          pb: 3,
           minHeight: '100vh',
-          transition: 'margin-left 0.3s ease-in-out',
-          width: `calc(100% - ${collapsedSidebarWidth}px)`,
-          overflow: 'hidden',
-          paddingLeft: '24px', // Reduce left padding
+          overflow: 'auto',
+          maxWidth: '100vw',
+          boxSizing: 'border-box',
         }}
       >
         {renderContent()}

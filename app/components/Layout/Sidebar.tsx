@@ -62,9 +62,9 @@ export default function Sidebar({ activeTab, setActiveTab, onExpandedChange }: S
       onMouseEnter={handleMouseEnter}
       onMouseLeave={handleMouseLeave}
       sx={{
-        width: collapsedWidth,
+        width: isExpanded ? expandedWidth : collapsedWidth,
         flexShrink: 0,
-        zIndex: (theme) => theme.zIndex.drawer,
+        zIndex: (theme) => theme.zIndex.drawer + 1, // Above content, below header
         '& .MuiDrawer-root': {
           position: 'relative',
         },
@@ -75,12 +75,12 @@ export default function Sidebar({ activeTab, setActiveTab, onExpandedChange }: S
           borderRight: '1px solid',
           borderColor: 'divider',
           position: 'fixed',
+          left: 0,
           height: '100vh',
           top: '64px', // Height of the header
-          transition: 'width 0.3s ease-in-out',
+          transition: 'width 0.3s cubic-bezier(0.4, 0, 0.2, 1), box-shadow 0.3s cubic-bezier(0.4, 0, 0.2, 1)',
           overflowX: 'hidden',
-          boxShadow: isExpanded ? '4px 0 12px rgba(0,0,0,0.15)' : 'none',
-          zIndex: 1200, // Lower than header but higher than content
+          boxShadow: isExpanded ? '0 4px 20px rgba(0,0,0,0.15)' : '0 1px 3px rgba(0,0,0,0.12)',
         },
       }}
     >

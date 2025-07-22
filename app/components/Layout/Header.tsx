@@ -25,23 +25,25 @@ export default function Header({ sidebarExpanded }: HeaderProps) {
     <AppBar
       position="fixed"
       sx={{
-        width: '100%',
-        zIndex: 1300, // Higher z-index to ensure it stays on top
+        width: '100vw',
+        left: 0,
+        right: 0,
+        zIndex: (theme) => theme.zIndex.drawer + 2, // Above sidebar
         bgcolor: 'background.paper',
         color: 'text.primary',
-        boxShadow: '0 2px 8px rgba(0,0,0,0.1)',
+        boxShadow: '0 1px 3px rgba(0,0,0,0.12), 0 1px 2px rgba(0,0,0,0.24)',
         borderBottom: '1px solid',
         borderColor: 'divider',
-        height: '64px',
+        height: 64,
       }}
     >
-      <Toolbar sx={{ minHeight: '64px !important' }}>
+      <Toolbar sx={{ minHeight: '64px !important', px: 3 }}>
         <Box sx={{ display: 'flex', alignItems: 'center', gap: 2, flexGrow: 1 }}>
           <Box
             component="img"
             src="/assets/LogoIcon.png"
             alt="Logo"
-            sx={{ width: 40, height: 40 }}
+            sx={{ width: 32, height: 32 }}
           />
           <Box sx={{ display: 'flex', flexDirection: 'column' }}>
             <Typography variant="h6" fontWeight={600} color="text.primary">
