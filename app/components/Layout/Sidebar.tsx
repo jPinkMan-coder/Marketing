@@ -80,6 +80,7 @@ export default function Sidebar({ activeTab, setActiveTab, onExpandedChange }: S
           transition: 'width 0.3s ease-in-out',
           overflowX: 'hidden',
           boxShadow: isExpanded ? '4px 0 12px rgba(0,0,0,0.15)' : 'none',
+          zIndex: 1200, // Lower than header but higher than content
         },
       }}
     >

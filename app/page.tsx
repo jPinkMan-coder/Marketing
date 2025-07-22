@@ -168,12 +168,13 @@ export default function Home() {
         sx={{
           flexGrow: 1,
           ml: `${collapsedSidebarWidth}px`,
-          pt: '80px', // Header height + padding
+          pt: '88px', // Header height (64px) + padding (24px)
           p: 3,
           minHeight: '100vh',
           transition: 'margin-left 0.3s ease-in-out',
           width: `calc(100% - ${collapsedSidebarWidth}px)`,
           overflow: 'hidden',
+          paddingLeft: '24px', // Reduce left padding
         }}
       >
         {renderContent()}

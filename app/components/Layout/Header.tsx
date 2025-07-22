@@ -26,12 +26,13 @@ export default function Header({ sidebarExpanded }: HeaderProps) {
       position="fixed"
       sx={{
         width: '100%',
-        zIndex: (theme) => theme.zIndex.drawer + 1,
+        zIndex: 1300, // Higher z-index to ensure it stays on top
         bgcolor: 'background.paper',
         color: 'text.primary',
         boxShadow: '0 2px 8px rgba(0,0,0,0.1)',
         borderBottom: '1px solid',
         borderColor: 'divider',
+        height: '64px',
       }}
     >
       <Toolbar sx={{ minHeight: '64px !important' }}>
