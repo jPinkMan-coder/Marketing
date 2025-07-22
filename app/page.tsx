@@ -161,13 +161,14 @@ export default function Home() {
         component="main"
         sx={{
           flexGrow: 1,
-          width: '100%',
+          width: '100vw',
           pt: '80px', // Header height (64px) + padding (16px)
-          px: 3,
+          pl: '80px', // Space for collapsed sidebar (64px + 16px padding)
+          pr: 3,
           pb: 3,
           minHeight: '100vh',
           overflow: 'auto',
-          maxWidth: '100vw',
+          maxWidth: 'calc(100vw - 80px)', // Account for sidebar space
           boxSizing: 'border-box',
         }}
       >

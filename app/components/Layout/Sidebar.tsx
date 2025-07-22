@@ -57,31 +57,25 @@ export default function Sidebar({ activeTab, setActiveTab, onExpandedChange }: S
   };
 
   return (
-    <Drawer
-      variant="permanent"
+    <Box
       onMouseEnter={handleMouseEnter}
       onMouseLeave={handleMouseLeave}
       sx={{
+        position: 'fixed',
+        left: 0,
+        top: '64px', // Below header
+        height: 'calc(100vh - 64px)',
         width: isExpanded ? expandedWidth : collapsedWidth,
-        flexShrink: 0,
-        zIndex: (theme) => theme.zIndex.drawer + 1, // Above content, below header
-        '& .MuiDrawer-root': {
-          position: 'relative',
-        },
-        '& .MuiDrawer-paper': {
-          width: isExpanded ? expandedWidth : collapsedWidth,
-          boxSizing: 'border-box',
-          bgcolor: 'background.paper',
-          borderRight: '1px solid',
-          borderColor: 'divider',
-          position: 'fixed',
-          left: 0,
-          height: '100vh',
-          top: '64px', // Height of the header
-          transition: 'width 0.3s cubic-bezier(0.4, 0, 0.2, 1), box-shadow 0.3s cubic-bezier(0.4, 0, 0.2, 1)',
-          overflowX: 'hidden',
-          boxShadow: isExpanded ? '0 4px 20px rgba(0,0,0,0.15)' : '0 1px 3px rgba(0,0,0,0.12)',
-        },
+        bgcolor: 'background.paper',
+        borderRight: '1px solid',
+        borderColor: 'divider',
+        zIndex: 1200, // Above content, below header
+        transition: 'width 0.3s cubic-bezier(0.4, 0, 0.2, 1), box-shadow 0.3s cubic-bezier(0.4, 0, 0.2, 1)',
+        overflowX: 'hidden',
+        overflowY: 'auto',
+        boxShadow: isExpanded ? '0 8px 32px rgba(0,0,0,0.2)' : '0 2px 8px rgba(0,0,0,0.1)',
+        display: 'flex',
+        flexDirection: 'column',
       }}
     >
       <List sx={{ px: 1, py: 2, mt: 1 }}>
@@ -139,26 +133,26 @@ export default function Sidebar({ activeTab, setActiveTab, onExpandedChange }: S
       </List>
 
       {isExpanded && (
-      <Box sx={{ 
-        mt: 'auto', 
-        p: 2,
-        opacity: isExpanded ? 1 : 0,
-        transition: 'opacity 0.3s ease-in-out',
-      }}>
-        <Divider sx={{ mb: 2 }} />
-        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-          <Person fontSize="small" color="primary" />
-          <Box>
-            <Typography variant="body2" fontWeight={600}>
-              {user?.name}
-            </Typography>
-            <Typography variant="caption" color="text.secondary">
-              {user?.role}
-            </Typography>
+        <Box sx={{ 
+          mt: 'auto', 
+          p: 2,
+          opacity: isExpanded ? 1 : 0,
+          transition: 'opacity 0.3s ease-in-out',
+        }}>
+          <Divider sx={{ mb: 2 }} />
+          <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+            <Person fontSize="small" color="primary" />
+            <Box>
+              <Typography variant="body2" fontWeight={600}>
+                {user?.name}
+              </Typography>
+              <Typography variant="caption" color="text.secondary">
+                {user?.role}
+              </Typography>
+            </Box>
           </Box>
         </Box>
-      </Box>
       )}
-    </Drawer>
+    </Box>
   );
 }
