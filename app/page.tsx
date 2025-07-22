@@ -168,7 +168,7 @@ export default function Home() {
         sx={{
           flexGrow: 1,
           ml: `${collapsedSidebarWidth}px`,
-          pt: '88px', // Header height + padding
+          pt: '80px', // Header height + padding
           p: 3,
           minHeight: '100vh',
           transition: 'margin-left 0.3s ease-in-out',

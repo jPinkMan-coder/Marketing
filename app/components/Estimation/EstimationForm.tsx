@@ -405,9 +405,14 @@ export default function EstimationForm() {
     <>
       <Card>
         <CardContent>
-          <Typography variant="h6" component="div" gutterBottom fontWeight={600}>
-            Create New Cost Estimation
-          </Typography>
+          <Box sx={{ mb: 3 }}>
+            <Typography variant="h5" component="div" gutterBottom fontWeight={600}>
+              Create New Cost Estimation
+            </Typography>
+            <Typography variant="body2" color="text.secondary">
+              Fill in the project details and add cost items to create a comprehensive estimation
+            </Typography>
+          </Box>
           
           <form>
             <Grid container spacing={3}>

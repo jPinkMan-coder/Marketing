@@ -201,11 +201,17 @@ export default function CRSReport() {
   return (
     <Card sx={{ mb: 3 }}>
       <CardContent>
+        <Box sx={{ mb: 3 }}>
+          <Typography variant="h5" component="div" fontWeight={600} gutterBottom>
+            Contract Review Sheet (CRS)
+          </Typography>
+          <Typography variant="body2" color="text.secondary">
+            Comprehensive financial analysis and cost tracking report
+          </Typography>
+        </Box>
+        
         <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', mb: 4 }}>
           <Box>
-            <Typography variant="h4" component="div" fontWeight={700} gutterBottom>
-              Contract Review Sheet (CRS)
-            </Typography>
             <Grid container spacing={2} sx={{ mt: 1 }}>
               <Grid item xs={12} md={6}>
                 <Typography variant="body2" color="text.secondary">

@@ -230,10 +230,16 @@ export default function POForm() {
     <>
       <Card>
         <CardContent>
-          <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 3 }}>
-            <Typography variant="h6" component="div" fontWeight={600}>
+          <Box sx={{ mb: 3 }}>
+            <Typography variant="h5" component="div" gutterBottom fontWeight={600}>
               Create Purchase Order
             </Typography>
+            <Typography variant="body2" color="text.secondary">
+              Generate purchase orders from cost estimations or create custom orders
+            </Typography>
+          </Box>
+          
+          <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 3 }}>
             <Chip label="Draft" color="warning" />
           </Box>
           

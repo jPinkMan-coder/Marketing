@@ -37,16 +37,20 @@ export default function Header({ sidebarExpanded }: HeaderProps) {
       <Toolbar sx={{ minHeight: '64px !important' }}>
         <Box sx={{ display: 'flex', alignItems: 'center', gap: 2, flexGrow: 1 }}>
           <Box
-          component="img"
-          src="/assets/LogoIcon.png"
-          alt="Logo"
-          sx={{ width: 200, height: 60 ,mr:5,}}
-        />
-        <Typography variant="body2" color="text.secondary" sx={{ml:5,}}
-        >
-          Cost Management System
-        </Typography>
-      </Box>
+            component="img"
+            src="/assets/LogoIcon.png"
+            alt="Logo"
+            sx={{ width: 40, height: 40 }}
+          />
+          <Box sx={{ display: 'flex', flexDirection: 'column' }}>
+            <Typography variant="h6" fontWeight={600} color="text.primary">
+              Project Financial Dashboard
+            </Typography>
+            <Typography variant="caption" color="text.secondary">
+              Cost Management System
+            </Typography>
+          </Box>
+        </Box>
         
         <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
           <IconButton size="large" color="inherit">
