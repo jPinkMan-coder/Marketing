@@ -43,7 +43,7 @@ export default function Home() {
     switch (activeTab) {
       case 'dashboard':
         return (
-          <Box>
+          <Box sx={mt:5}>
             <Typography variant="h4" component="h1" gutterBottom fontWeight={700}>
               Dashboard Overview
             </Typography>
