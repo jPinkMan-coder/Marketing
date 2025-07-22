@@ -1,11 +1,10 @@
 'use client';
-import React, { useState } from 'react';
+import React, { useState, useCallback } from 'react';
 import dynamic from 'next/dynamic';
 import {
   Box,
   Grid,
   Typography,
-  Toolbar,
 } from '@mui/material';
 import {
   AccountBalance,
@@ -27,13 +26,18 @@ const CostChart = dynamic(() => import('./components/Dashboard/CostChart'), {
   ssr: false
 });
 
-const drawerWidth = 280;
+const collapsedSidebarWidth = 64;
 
 export default function Home() {
   const [activeTab, setActiveTab] = useState('dashboard');
+  const [sidebarExpanded, setSidebarExpanded] = useState(false);
   const { getProjectSummary } = useEstimation();
   
   const projectSummary = getProjectSummary();
+
+  const handleSidebarExpandedChange = useCallback((expanded: boolean) => {
+    setSidebarExpanded(expanded);
+  }, []);
 
   const renderContent = () => {
     switch (activeTab) {
@@ -151,19 +155,27 @@ export default function Home() {
   };
 
   return (
-    <Box sx={{ display: 'flex' }}>
-      <Header />
-      <Sidebar activeTab={activeTab} setActiveTab={setActiveTab} />
+    <Box sx={{ display: 'flex', minHeight: '100vh' }}>
+      <Header sidebarExpanded={sidebarExpanded} />
+      <Sidebar 
+        activeTab={activeTab} 
+        setActiveTab={setActiveTab}
+        onExpandedChange={handleSidebarExpandedChange}
+      />
       
       <Box
         component="main"
         sx={{
           flexGrow: 1,
+          ml: `${collapsedSidebarWidth}px`,
+          pt: '88px', // Header height + padding
           p: 3,
           minHeight: '100vh',
+          transition: 'margin-left 0.3s ease-in-out',
+          width: `calc(100% - ${collapsedSidebarWidth}px)`,
+          overflow: 'hidden',
         }}
       >
-        <Toolbar />
         {renderContent()}
       </Box>
     </Box>

@@ -1,5 +1,5 @@
 'use client';
-import React from 'react';
+import React, { useState } from 'react';
 import {
   Drawer,
   List,
@@ -11,6 +11,7 @@ import {
   Box,
   Divider,
   Chip,
+  Tooltip,
 } from '@mui/material';
 import {
   Dashboard,
@@ -23,15 +24,18 @@ import {
 } from '@mui/icons-material';
 import { useApp } from '../../context/AppContext';
 
-const drawerWidth = 280;
+const collapsedWidth = 64;
+const expandedWidth = 280;
 
 interface SidebarProps {
   activeTab: string;
   setActiveTab: (tab: string) => void;
+  onExpandedChange?: (expanded: boolean) => void;
 }
 
-export default function Sidebar({ activeTab, setActiveTab }: SidebarProps) {
+export default function Sidebar({ activeTab, setActiveTab, onExpandedChange }: SidebarProps) {
   const { currentProject, user } = useApp();
+  const [isExpanded, setIsExpanded] = useState(false);
 
   const menuItems = [
     { id: 'dashboard', label: 'Dashboard', icon: <Dashboard /> },
@@ -42,93 +46,104 @@ export default function Sidebar({ activeTab, setActiveTab }: SidebarProps) {
     { id: 'settings', label: 'Settings', icon: <Settings /> },
   ];
 
+  const handleMouseEnter = () => {
+    setIsExpanded(true);
+    onExpandedChange?.(true);
+  };
+
+  const handleMouseLeave = () => {
+    setIsExpanded(false);
+    onExpandedChange?.(false);
+  };
+
   return (
     <Drawer
       variant="permanent"
+      onMouseEnter={handleMouseEnter}
+      onMouseLeave={handleMouseLeave}
       sx={{
-        width: drawerWidth,
+        width: collapsedWidth,
         flexShrink: 0,
+        zIndex: (theme) => theme.zIndex.drawer,
         '& .MuiDrawer-root': {
           position: 'relative',
         },
         '& .MuiDrawer-paper': {
-          width: drawerWidth,
+          width: isExpanded ? expandedWidth : collapsedWidth,
           boxSizing: 'border-box',
           bgcolor: 'background.paper',
           borderRight: '1px solid',
           borderColor: 'divider',
           position: 'fixed',
           height: '100vh',
+          top: '64px', // Height of the header
+          transition: 'width 0.3s ease-in-out',
+          overflowX: 'hidden',
+          boxShadow: isExpanded ? '4px 0 12px rgba(0,0,0,0.15)' : 'none',
         },
       }}
     >
-      <Box sx={{ p: 3 }}>
-        <Box
-          component="img"
-          src="/assets/LogoIcon.png"
-          alt="Logo"
-          sx={{ width: 200, height: 60 ,mr:5,}}
-        />
-        <Typography variant="body2" color="text.secondary" sx={{ml:5,}}
-        >
-          Cost Management System
-        </Typography>
-      </Box>
-
-      <Divider />
-
-      {/* {currentProject && (
-        <Box sx={{ p: 2 }}>
-          <Typography variant="subtitle2" color="text.secondary" gutterBottom>
-            Current Project
-          </Typography>
-          <Box sx={{ mb: 1 }}>
-            <Typography variant="body2" fontWeight={600}>
-              {currentProject.name}
-            </Typography>
-            <Typography variant="caption" color="text.secondary">
-              {currentProject.code}
-            </Typography>
-          </Box>
-          <Chip 
-            label={currentProject.status} 
-            size="small" 
-            color={currentProject.status === 'active' ? 'success' : 'default'}
-            sx={{ textTransform: 'capitalize' }}
-          />
-        </Box>
-      )} */}
-
-      <Divider />
-
-      <List sx={{ px: 1, py: 2 }}>
+      <List sx={{ px: 1, py: 2, mt: 1 }}>
         {menuItems.map((item) => (
-          <ListItem key={item.id} disablePadding sx={{ mb: 0.5 }}>
-            <ListItemButton
-              selected={activeTab === item.id}
-              onClick={() => setActiveTab(item.id)}
-              sx={{
-                borderRadius: 2,
-                '&.Mui-selected': {
-                  bgcolor: 'primary.main',
-                  color: 'white',
-                  '&:hover': {
-                    bgcolor: 'primary.dark',
-                  },
-                  '& .MuiListItemIcon-root': {
+          <Tooltip
+            key={item.id}
+            title={!isExpanded ? item.label : ''}
+            placement="right"
+            arrow
+          >
+            <ListItem disablePadding sx={{ mb: 0.5 }}>
+              <ListItemButton
+                selected={activeTab === item.id}
+                onClick={() => setActiveTab(item.id)}
+                sx={{
+                  borderRadius: 2,
+                  minHeight: 48,
+                  justifyContent: isExpanded ? 'initial' : 'center',
+                  px: 2,
+                  '&.Mui-selected': {
+                    bgcolor: 'primary.main',
                     color: 'white',
+                    '&:hover': {
+                      bgcolor: 'primary.dark',
+                    },
+                    '& .MuiListItemIcon-root': {
+                      color: 'white',
+                    },
                   },
-                },
-              }}
-            >
-              <ListItemIcon>{item.icon}</ListItemIcon>
-              <ListItemText primary={item.label} />
-            </ListItemButton>
-          </ListItem>
+                  '&:hover': {
+                    bgcolor: activeTab === item.id ? 'primary.dark' : 'action.hover',
+                  },
+                }}
+              >
+                <ListItemIcon
+                  sx={{
+                    minWidth: 0,
+                    mr: isExpanded ? 3 : 'auto',
+                    justifyContent: 'center',
+                  }}
+                >
+                  {item.icon}
+                </ListItemIcon>
+                <ListItemText 
+                  primary={item.label} 
+                  sx={{ 
+                    opacity: isExpanded ? 1 : 0,
+                    transition: 'opacity 0.3s ease-in-out',
+                  }} 
+                />
+              </ListItemButton>
+            </ListItem>
+          </Tooltip>
         ))}
       </List>
 
-      <Box sx={{ mt: 'auto', p: 2 }}>
+      {isExpanded && (
+      <Box sx={{ 
+        mt: 'auto', 
+        p: 2,
+        opacity: isExpanded ? 1 : 0,
+        transition: 'opacity 0.3s ease-in-out',
+      }}>
         <Divider sx={{ mb: 2 }} />
         <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
           <Person fontSize="small" color="primary" />
@@ -142,6 +157,7 @@ export default function Sidebar({ activeTab, setActiveTab }: SidebarProps) {
           </Box>
         </Box>
       </Box>
+      )}
     </Drawer>
   );
 }

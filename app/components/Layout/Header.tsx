@@ -7,40 +7,51 @@ import {
   Box,
   IconButton,
   Badge,
-  Avatar,
 } from '@mui/material';
 import {
   Notifications,
-  Search,
   AccountCircle,
 } from '@mui/icons-material';
+import Image from 'next/image';
 
-const drawerWidth = 280;
+const collapsedSidebarWidth = 64;
 
-export default function Header() {
+interface HeaderProps {
+  sidebarExpanded: boolean;
+}
+
+export default function Header({ sidebarExpanded }: HeaderProps) {
   return (
     <AppBar
       position="fixed"
       sx={{
-        width: { sm: `calc(100% - ${drawerWidth}px)` },
-        ml: { sm: `${drawerWidth}px` },
+        width: '100%',
+        zIndex: (theme) => theme.zIndex.drawer + 1,
         bgcolor: 'background.paper',
         color: 'text.primary',
-        boxShadow: '0 1px 3px rgba(0,0,0,0.1)',
+        boxShadow: '0 2px 8px rgba(0,0,0,0.1)',
         borderBottom: '1px solid',
         borderColor: 'divider',
       }}
     >
-      <Toolbar>
-        <Typography variant="h6" component="div" sx={{ flexGrow: 1, fontWeight: 600 }}>
-          Project Financial Dashboard
-        </Typography>
+      <Toolbar sx={{ minHeight: '64px !important' }}>
+        <Box sx={{ display: 'flex', alignItems: 'center', gap: 2, flexGrow: 1 }}>
+          <Box
+            component="img"
+            src="/assets/LogoIcon.png"
+            alt="Logo"
+            sx={{ 
+              width: 40, 
+              height: 40,
+              objectFit: 'contain'
+            }}
+          />
+          <Typography variant="h6" component="div" sx={{ fontWeight: 600 }}>
+            Cost Management System
+          </Typography>
+        </Box>
         
         <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-          <IconButton size="large" color="inherit">
-            <Search />
-          </IconButton>
-          
           <IconButton size="large" color="inherit">
             <Badge badgeContent={3} color="error">
               <Notifications />
