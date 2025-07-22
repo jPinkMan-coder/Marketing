@@ -63,17 +63,21 @@ export default function Sidebar({ activeTab, setActiveTab }: SidebarProps) {
       }}
     >
       <Box sx={{ p: 3 }}>
-        <Typography variant="h5" component="div" sx={{ fontWeight: 700, color: 'primary.main' }}>
-          FinanceTracker
-        </Typography>
-        <Typography variant="body2" color="text.secondary">
+        <Box
+          component="img"
+          src="/assets/LogoIcon.png"
+          alt="Logo"
+          sx={{ width: 200, height: 60 ,mr:5,}}
+        />
+        <Typography variant="body2" color="text.secondary" sx={{ml:5,}}
+        >
           Cost Management System
         </Typography>
       </Box>
 
       <Divider />
 
-      {currentProject && (
+      {/* {currentProject && (
         <Box sx={{ p: 2 }}>
           <Typography variant="subtitle2" color="text.secondary" gutterBottom>
             Current Project
@@ -93,7 +97,7 @@ export default function Sidebar({ activeTab, setActiveTab }: SidebarProps) {
             sx={{ textTransform: 'capitalize' }}
           />
         </Box>
-      )}
+      )} */}
 
       <Divider />
 

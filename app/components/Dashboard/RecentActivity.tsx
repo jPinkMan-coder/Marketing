@@ -9,7 +9,6 @@ import {
   ListItemText,
   ListItemAvatar,
   Avatar,
-  Chip,
   Box,
   Divider,
 } from '@mui/material';
@@ -62,51 +61,56 @@ const activities = [
 export default function RecentActivity() {
   return (
     <Card sx={{ height: 400 }}>
-      <CardContent>
+      <CardContent sx={{ height: '100%', display: 'flex', flexDirection: 'column' }}>
         <Typography variant="h6" component="div" gutterBottom fontWeight={600}>
           Recent Activity
         </Typography>
-        <Typography variant="body2" color="text.secondary" sx={{ mb: 3 }}>
+        <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
           Latest updates and changes
         </Typography>
-        
-        <List sx={{ py: 0 }}>
-          {activities.map((activity, index) => (
-            <React.Fragment key={activity.id}>
-              <ListItem alignItems="flex-start" sx={{ px: 0 }}>
-                <ListItemAvatar>
-                  <Avatar 
-                    sx={{ 
-                      bgcolor: `${activity.color}.main`,
-                      width: 40,
-                      height: 40,
-                    }}
-                  >
-                    {activity.icon}
-                  </Avatar>
-                </ListItemAvatar>
-                <ListItemText
-                  primary={
-                    <Typography variant="body2" fontWeight={600}>
-                      {activity.title}
-                    </Typography>
-                  }
-                  secondary={
-                    <Box>
-                      <Typography variant="body2" color="text.secondary">
-                        {activity.description}
+
+        {/* Scrollable List */}
+        <Box sx={{ overflowY: 'auto', flexGrow: 1 }}>
+          <List sx={{ py: 0 }}>
+            {activities.map((activity, index) => (
+              <React.Fragment key={activity.id}>
+                <ListItem alignItems="flex-start" sx={{ px: 0 }}>
+                  <ListItemAvatar>
+                    <Avatar 
+                      sx={{ 
+                        bgcolor: `${activity.color}.main`,
+                        width: 40,
+                        height: 40,
+                      }}
+                    >
+                      {activity.icon}
+                    </Avatar>
+                  </ListItemAvatar>
+                  <ListItemText
+                    primary={
+                      <Typography variant="body2" fontWeight={600}>
+                        {activity.title}
                       </Typography>
-                      <Typography variant="caption" color="text.secondary">
-                        {activity.time}
-                      </Typography>
-                    </Box>
-                  }
-                />
-              </ListItem>
-              {index < activities.length - 1 && <Divider variant="inset" component="li" />}
-            </React.Fragment>
-          ))}
-        </List>
+                    }
+                    secondary={
+                      <Box>
+                        <Typography variant="body2" color="text.secondary">
+                          {activity.description}
+                        </Typography>
+                        <Typography variant="caption" color="text.secondary">
+                          {activity.time}
+                        </Typography>
+                      </Box>
+                    }
+                  />
+                </ListItem>
+                {index < activities.length - 1 && (
+                  <Divider variant="inset" component="li" />
+                )}
+              </React.Fragment>
+            ))}
+          </List>
+        </Box>
       </CardContent>
     </Card>
   );
