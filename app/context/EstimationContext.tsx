@@ -54,12 +54,15 @@ interface EstimationContextType {
     totalVariance: number;
     variancePercent: number;
   };
+  editingEstimation: Estimation | null;
+  setEditingEstimation: (estimation: Estimation | null) => void;
 }
 
 const EstimationContext = createContext<EstimationContextType | undefined>(undefined);
 
 export function EstimationProvider({ children }: { children: ReactNode }) {
   const [estimations, setEstimations] = useState<Estimation[]>([]);
+  const [editingEstimation, setEditingEstimation] = useState<Estimation | null>(null);
 
   // Load estimations from localStorage on mount
   useEffect(() => {
@@ -196,6 +199,8 @@ export function EstimationProvider({ children }: { children: ReactNode }) {
       getCRSReportData,
       getTotalsByCategory,
       getProjectSummary,
+      editingEstimation,
+      setEditingEstimation,
     }}>
       {children}
     </EstimationContext.Provider>

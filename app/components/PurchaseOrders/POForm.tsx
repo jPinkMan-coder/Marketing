@@ -41,6 +41,9 @@ import {
   Assignment,
 } from '@mui/icons-material';
 import { useForm, useFieldArray } from 'react-hook-form';
+import { usePurchaseOrder } from '../../context/PurchaseOrderContext';
+import React from 'react';
+import { Snackbar, Alert } from '@mui/material';
 
 interface EstimationItem {
   id: string;
@@ -143,9 +146,12 @@ const vendors = [
 ];
 
 export default function POForm() {
+  const { addPurchaseOrder, editingPO, setEditingPO, updatePurchaseOrder } = usePurchaseOrder();
   const [showEstimationDialog, setShowEstimationDialog] = useState(false);
   const [selectedEstimationItems, setSelectedEstimationItems] = useState<string[]>([]);
   const [searchTerm, setSearchTerm] = useState('');
+  const [showSuccess, setShowSuccess] = useState(false);
+  const [showError, setShowError] = useState(false);
 
   const { register, control, handleSubmit, watch, setValue, getValues } = useForm<POFormData>({
     defaultValues: {
@@ -153,6 +159,19 @@ export default function POForm() {
       items: []
     }
   });
+
+  // Load editing PO data when component mounts
+  React.useEffect(() => {
+    if (editingPO) {
+      setValue('poNumber', editingPO.poNumber);
+      setValue('vendor', editingPO.vendor);
+      setValue('deliveryDate', editingPO.deliveryDate);
+      setValue('terms', editingPO.terms);
+      setValue('status', editingPO.status);
+      setValue('notes', editingPO.notes);
+      replace(editingPO.items);
+    }
+  }, [editingPO, setValue, replace]);
 
   const { fields, append, remove, replace } = useFieldArray({
     control,
@@ -222,8 +241,55 @@ export default function POForm() {
   };
 
   const onSubmit = (data: POFormData) => {
-    console.log('PO submitted:', data);
-    // Handle form submission
+    try {
+      const itemsWithIds = data.items.map((item, index) => ({
+        ...item,
+        id: item.estimationItemId || `${Date.now()}-${index}`,
+      }));
+
+      const poData = {
+        ...data,
+        items: itemsWithIds,
+      };
+
+      if (editingPO) {
+        // Update existing PO
+        updatePurchaseOrder(editingPO.id, poData);
+        setEditingPO(null);
+      } else {
+        // Create new PO
+        addPurchaseOrder(poData);
+      }
+
+      setShowSuccess(true);
+      // Reset form after successful submission
+      reset({
+        poNumber: '',
+        vendor: '',
+        deliveryDate: '',
+        terms: '',
+        status: 'draft',
+        items: [],
+        notes: ''
+      });
+    } catch (error) {
+      console.error('Error saving purchase order:', error);
+      setShowError(true);
+    }
+  };
+
+  const handleSaveDraft = () => {
+    handleSubmit((data) => {
+      const updatedData = { ...data, status: 'draft' as const };
+      onSubmit(updatedData);
+    })();
+  };
+
+  const handleSubmitPO = () => {
+    handleSubmit((data) => {
+      const updatedData = { ...data, status: 'submitted' as const };
+      onSubmit(updatedData);
+    })();
   };
 
   return (
@@ -232,18 +298,21 @@ export default function POForm() {
         <CardContent>
           <Box sx={{ mb: 3 }}>
             <Typography variant="h5" component="div" gutterBottom fontWeight={600}>
-              Create Purchase Order
+              {editingPO ? 'Edit Purchase Order' : 'Create Purchase Order'}
             </Typography>
             <Typography variant="body2" color="text.secondary">
-              Generate purchase orders from cost estimations or create custom orders
+              {editingPO ? 'Update the purchase order details and items' : 'Generate purchase orders from cost estimations or create custom orders'}
             </Typography>
           </Box>
           
           <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 3 }}>
-            <Chip label="Draft" color="warning" />
+            <Chip 
+              label={editingPO ? editingPO.status.toUpperCase() : 'Draft'} 
+              color={editingPO?.status === 'approved' ? 'success' : editingPO?.status === 'submitted' ? 'info' : 'warning'} 
+            />
           </Box>
           
-          <form onSubmit={handleSubmit(onSubmit)}>
+          <form>
             <Grid container spacing={3}>
               <Grid item xs={12} md={6}>
                 <TextField
@@ -459,21 +528,41 @@ export default function POForm() {
               </Button>
               
               <Box sx={{ display: 'flex', gap: 2 }}>
+                {editingPO && (
+                  <Button 
+                    variant="outlined" 
+                    onClick={() => {
+                      setEditingPO(null);
+                      reset({
+                        poNumber: '',
+                        vendor: '',
+                        deliveryDate: '',
+                        terms: '',
+                        status: 'draft',
+                        items: [],
+                        notes: ''
+                      });
+                    }}
+                  >
+                    Cancel Edit
+                  </Button>
+                )}
                 <Button variant="outlined" startIcon={<Save />}>
                   Save Draft
                 </Button>
                 <Button 
                   variant="contained" 
                   type="submit" 
+                  onClick={handleSaveDraft}
                   startIcon={<Send />}
                   disabled={fields.length === 0}
                 >
-                  Submit for Approval
+                  {editingPO ? 'Update Draft' : 'Save Draft'}
                 </Button>
               </Box>
             </Box>
-          </form>
         </CardContent>
+                  onClick={handleSubmitPO}
       </Card>
 
       {/* Estimation Items Selection Dialog */}
@@ -539,7 +628,7 @@ export default function POForm() {
           
           {selectedEstimationItems.length > 0 && (
             <Box sx={{ mt: 2, p: 2, bgcolor: 'primary.light', borderRadius: 1 }}>
-              <Typography variant="body2" color="primary.dark">
+                  {editingPO ? 'Update & Submit' : 'Submit for Approval'}
                 {selectedEstimationItems.length} item(s) selected
               </Typography>
             </Box>
@@ -558,6 +647,26 @@ export default function POForm() {
           </Button>
         </DialogActions>
       </Dialog>
+
+      <Snackbar
+        open={showSuccess}
+        autoHideDuration={6000}
+        onClose={() => setShowSuccess(false)}
+      >
+        <Alert onClose={() => setShowSuccess(false)} severity="success" sx={{ width: '100%' }}>
+          {editingPO ? 'Purchase order updated successfully!' : 'Purchase order saved successfully!'}
+        </Alert>
+      </Snackbar>
+
+      <Snackbar
+        open={showError}
+        autoHideDuration={6000}
+        onClose={() => setShowError(false)}
+      >
+        <Alert onClose={() => setShowError(false)} severity="error" sx={{ width: '100%' }}>
+          Error saving purchase order. Please try again.
+        </Alert>
+      </Snackbar>
     </>
   );
 }

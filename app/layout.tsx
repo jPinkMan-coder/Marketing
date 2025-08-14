@@ -5,6 +5,7 @@ import { Inter } from 'next/font/google';
 import ThemeRegistry from './ThemeRegistry';
 import { AppProvider } from './context/AppContext';
 import { EstimationProvider } from './context/EstimationContext';
+import { PurchaseOrderProvider } from './context/PurchaseOrderContext';
 
 const inter = Inter({ subsets: ['latin'] });
 
@@ -23,7 +24,9 @@ export default function RootLayout({
         <ThemeRegistry>
           <AppProvider>
             <EstimationProvider>
-              {children}
+              <PurchaseOrderProvider>
+                {children}
+              </PurchaseOrderProvider>
             </EstimationProvider>
           </AppProvider>
         </ThemeRegistry>

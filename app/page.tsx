@@ -20,7 +20,10 @@ import RecentActivity from './components/Dashboard/RecentActivity';
 import EstimationForm from './components/Estimation/EstimationForm';
 import POForm from './components/PurchaseOrders/POForm';
 import CRSReport from './components/Reports/CRSReport';
+import EstimationReports from './components/Reports/EstimationReports';
+import PurchaseOrderReports from './components/Reports/PurchaseOrderReports';
 import { useEstimation } from './context/EstimationContext';
+import { usePurchaseOrder } from './context/PurchaseOrderContext';
 
 const CostChart = dynamic(() => import('./components/Dashboard/CostChart'), {
   ssr: false
@@ -30,9 +33,44 @@ const collapsedSidebarWidth = 64;
 
 export default function Home() {
   const [activeTab, setActiveTab] = useState('dashboard');
+  const [activeSubTab, setActiveSubTab] = useState('');
   const { getProjectSummary } = useEstimation();
+  const { setEditingEstimation } = useEstimation();
+  const { setEditingPO } = usePurchaseOrder();
   
   const projectSummary = getProjectSummary();
+
+  const handleCreateNewEstimation = () => {
+    setEditingEstimation(null);
+    setActiveTab('estimation');
+    setActiveSubTab('form');
+  };
+
+  const handleEditEstimation = (estimationId: string) => {
+    const { getEstimationById } = useEstimation();
+    const estimation = getEstimationById(estimationId);
+    if (estimation) {
+      setEditingEstimation(estimation);
+      setActiveTab('estimation');
+      setActiveSubTab('form');
+    }
+  };
+
+  const handleCreateNewPO = () => {
+    setEditingPO(null);
+    setActiveTab('purchase-orders');
+    setActiveSubTab('form');
+  };
+
+  const handleEditPO = (poId: string) => {
+    const { getPurchaseOrderById } = usePurchaseOrder();
+    const po = getPurchaseOrderById(poId);
+    if (po) {
+      setEditingPO(po);
+      setActiveTab('purchase-orders');
+      setActiveSubTab('form');
+    }
+  };
 
   const renderContent = () => {
     switch (activeTab) {
@@ -105,7 +143,30 @@ export default function Home() {
             <Typography variant="body1" color="text.secondary" sx={{ mb: 4 }}>
               Create and manage cost estimations for project components
             </Typography>
-            <EstimationForm />
+            
+            <Box sx={{ mb: 3, display: 'flex', gap: 2 }}>
+              <Button
+                variant={activeSubTab === 'reports' || activeSubTab === '' ? 'contained' : 'outlined'}
+                onClick={() => setActiveSubTab('reports')}
+              >
+                View Reports
+              </Button>
+              <Button
+                variant={activeSubTab === 'form' ? 'contained' : 'outlined'}
+                onClick={() => setActiveSubTab('form')}
+              >
+                {activeSubTab === 'form' ? 'Estimation Form' : 'Create New'}
+              </Button>
+            </Box>
+
+            {activeSubTab === 'form' ? (
+              <EstimationForm />
+            ) : (
+              <EstimationReports 
+                onCreateNew={handleCreateNewEstimation}
+                onEditEstimation={handleEditEstimation}
+              />
+            )}
           </Box>
         );
       
@@ -118,7 +179,21 @@ export default function Home() {
             <Typography variant="body1" color="text.secondary" sx={{ mb: 4 }}>
               Manage purchase orders and vendor commitments
             </Typography>
-            <POForm />
+            
+            <Box sx={{ mb: 3, display: 'flex', gap: 2 }}>
+              <Button
+                variant={activeSubTab === 'reports' || activeSubTab === '' ? 'contained' : 'outlined'}
+                onClick={() => setActiveSubTab('reports')}
+              >
+                View Reports
+              </Button>
+              <Button
+                variant={activeSubTab === 'form' ? 'contained' : 'outlined'}
+                onClick={() => setActiveSubTab('form')}
+              >
+                {activeSubTab === 'form' ? 'PO Form' : 'Create New'}
+              </Button>
+            </Box>
           </Box>
         );
       
@@ -149,6 +224,19 @@ export default function Home() {
     }
   };
 
+  // Reset sub-tab when main tab changes
+  React.useEffect(() => {
+    setActiveSubTab('');
+  }, [activeTab]);
+
+            {activeSubTab === 'form' ? (
+              <POForm />
+            ) : (
+              <PurchaseOrderReports 
+                onCreateNew={handleCreateNewPO}
+                onEditPO={handleEditPO}
+              />
+            )}
   return (
     <Box sx={{ display: 'flex', minHeight: '100vh', overflow: 'hidden' }}>
       <Header sidebarExpanded={false} />

@@ -67,6 +67,7 @@ const costHeads = [
 export default function EstimationForm() {
   const { addEstimation } = useEstimation();
   const { currentProject, user } = useApp();
+  const { editingEstimation, setEditingEstimation, updateEstimation } = useEstimation();
   const [showSuccess, setShowSuccess] = useState(false);
   const [showError, setShowError] = useState(false);
   const [uploadDialog, setUploadDialog] = useState(false);
@@ -85,6 +86,21 @@ export default function EstimationForm() {
       items: []
     }
   });
+
+  // Load editing estimation data when component mounts
+  React.useEffect(() => {
+    if (editingEstimation) {
+      reset({
+        projectId: editingEstimation.projectId,
+        projectName: editingEstimation.projectName,
+        company: editingEstimation.company,
+        companyName: editingEstimation.companyName,
+        baseCurrency: editingEstimation.baseCurrency,
+        status: editingEstimation.status,
+        items: editingEstimation.items
+      });
+    }
+  }, [editingEstimation, reset]);
 
   const { fields, append, remove, replace } = useFieldArray({
     control,
@@ -109,7 +125,7 @@ export default function EstimationForm() {
         id: `${Date.now()}-${index}`,
       }));
 
-      addEstimation({
+      const estimationData = {
         projectId: data.projectId,
         projectName: data.projectName,
         company: data.company,
@@ -117,7 +133,16 @@ export default function EstimationForm() {
         baseCurrency: data.baseCurrency,
         status: isDraft ? "draft" : "submitted",
         items: itemsWithIds,
-      });
+      };
+
+      if (editingEstimation) {
+        // Update existing estimation
+        updateEstimation(editingEstimation.id, estimationData);
+        setEditingEstimation(null);
+      } else {
+        // Create new estimation
+        addEstimation(estimationData);
+      }
 
       setShowSuccess(true);
       // Reset form after successful submission
@@ -407,10 +432,10 @@ export default function EstimationForm() {
         <CardContent>
           <Box sx={{ mb: 3 }}>
             <Typography variant="h5" component="div" gutterBottom fontWeight={600}>
-              Create New Cost Estimation
+              {editingEstimation ? 'Edit Cost Estimation' : 'Create New Cost Estimation'}
             </Typography>
             <Typography variant="body2" color="text.secondary">
-              Fill in the project details and add cost items to create a comprehensive estimation
+              {editingEstimation ? 'Update the estimation details and items' : 'Fill in the project details and add cost items to create a comprehensive estimation'}
             </Typography>
           </Box>
           
@@ -630,19 +655,38 @@ export default function EstimationForm() {
             </Grid>
 
             <Box sx={{ mt: 3, display: 'flex', gap: 2, justifyContent: 'flex-end' }}>
+              {editingEstimation && (
+                <Button 
+                  variant="outlined" 
+                  onClick={() => {
+                    setEditingEstimation(null);
+                    reset({
+                      projectId: '',
+                      projectName: '',
+                      company: '',
+                      companyName: '',
+                      baseCurrency: '',
+                      status: '',
+                      items: []
+                    });
+                  }}
+                >
+                  Cancel Edit
+                </Button>
+              )}
               <Button 
                 variant="outlined" 
                 startIcon={<Save />}
                 onClick={handleSaveDraft}
               >
-                Save Draft
+                {editingEstimation ? 'Update Draft' : 'Save Draft'}
               </Button>
               <Button 
                 variant="contained" 
                 startIcon={<Send />}
                 onClick={handleSubmitEstimation}
               >
-                Submit Estimation
+                {editingEstimation ? 'Update & Submit' : 'Submit Estimation'}
               </Button>
             </Box>
           </form>
@@ -772,7 +816,7 @@ export default function EstimationForm() {
         onClose={() => setShowSuccess(false)}
       >
         <Alert onClose={() => setShowSuccess(false)} severity="success" sx={{ width: '100%' }}>
-          Estimation saved successfully! The report page will now reflect your changes.
+          {editingEstimation ? 'Estimation updated successfully!' : 'Estimation saved successfully!'} The report page will now reflect your changes.
         </Alert>
       </Snackbar>
 
